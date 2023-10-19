@@ -13,6 +13,7 @@ enable_testing()
 
 # Include Boost.Test.
 find_package(Boost REQUIRED COMPONENTS unit_test_framework)
+add_library(Boost::Boost INTERFACE IMPORTED)
 
 set(SRC_FILES
     src/Server.cpp
@@ -29,6 +30,8 @@ set(TEST_SRC_FILES
     test/TestRequestHandler.cpp
     test/TestServer.cpp
 )
+
+add_executable(Http ${SRC_FILES})
 
 # Create the test executable for Boost.Test.
 add_executable(HttpServerTests ${TEST_SRC_FILES} ${SRC_FILES})
