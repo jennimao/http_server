@@ -11,6 +11,8 @@
 #include <netinet/in.h>
 #include <unistd.h>
 
+#include "Uri.h"
+
 namespace HttpServer {
 
     // Maximum size of an HTTP message is limited by how much bytes
@@ -26,17 +28,20 @@ namespace HttpServer {
             explicit HttpServer(const std::string& host, std::uint16_t port);
             ~HttpServer();
             HttpServer() = default;
+
+            // A request handler type: takes in request and returns a response
+            using HttpRequestHandler_t = std::function<HttpResponse(const HttpRequest&)>;
             
             void Start();
             void Stop();
 
-            // add a request handler 
+            // Add Request Handlers
             void AddRequestHandler(const std::string& path, HttpMethod method,
-                                            void (*handler)()) {
-                // Uri uri(path); // if you decide to make a URI class
-                // request_handlers_[uri].insert(std::make_pair(method, std::move(callback)));
+                                  const HttpRequestHandler_t callback) {
+                Uri uri(path);
+                request_handlers_[uri].insert(std::make_pair(method, std::move(callback)));
             }
-
+  
             /* std::string host() const { return host_; } --> if these are defined in constructor, do i need? 
             std::uint16_t port() const { return port_; }
             bool running() const { return running_; } */
