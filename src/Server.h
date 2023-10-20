@@ -6,18 +6,30 @@
 #include <thread>
 #include <vector>
 #include <map>
+#include <functional>
 #include <iostream>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <unistd.h>
 
 #include "Uri.h"
+#include "Message.h"
+#include "RequestHandlers.h"
 
-namespace HttpServer {
+namespace Server {
 
     // Maximum size of an HTTP message is limited by how much bytes
     // we can read or send via socket each time
     constexpr size_t kMaxBufferSize = 4096;
+
+    struct EventData {
+        EventData() : fd(0), length(0), cursor(0), buffer() {}
+        int fd;
+        size_t length;
+        size_t cursor;
+        char buffer[kMaxBufferSize];
+    };
+
 
     // server is made up of: 
     //      management thread to display control terminal 
@@ -38,7 +50,7 @@ namespace HttpServer {
             // Add Request Handlers
             void AddRequestHandler(const std::string& path, HttpMethod method,
                                   const HttpRequestHandler_t callback) {
-                Uri uri(path);
+                UriObject::Uri uri(path);
                 request_handlers_[uri].insert(std::make_pair(method, std::move(callback)));
             }
   
@@ -46,8 +58,6 @@ namespace HttpServer {
             std::uint16_t port() const { return port_; }
             bool running() const { return running_; } */
 
-        // all the server methods 
-        private:
             static constexpr int kBacklogSize = 1000;
             static constexpr int kMaxConnections = 10000;
             static constexpr int kMaxEvents = 10000;
@@ -62,7 +72,7 @@ namespace HttpServer {
             int worker_kq_fd_[kThreadPoolSize];
             int kq_; 
             // map that stores request handlers associated with a URI and HTTP method
-            std::map<Uri, std::map<HttpMethod, HttpRequestHandler_t>> request_handlers_;
+            std::map<UriObject::Uri, std::map<HttpMethod, HttpRequestHandler_t>> request_handlers_;
             std::uniform_int_distribution<int> sleep_times_;
 
             void CreateSocket();
@@ -75,6 +85,9 @@ namespace HttpServer {
 
             void control_kqueue_event(int kq_fd, int op, int fd,
                                     std::uint32_t events = 0, void* data = nullptr);
+
+        // all the server methods 
+        private:
     };
 
 }

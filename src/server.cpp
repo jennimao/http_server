@@ -7,31 +7,30 @@
 #include <unistd.h>
 #include <stdexcept>
 
-#include "Message.h"
-#include "Uri.h"
+#include "Server.h"
 
 // Define the HttpServer namespace
-namespace HttpServer {
+namespace Server {
 
     // Constructor
-    HttpServer::HttpServer(const std::string& host, std::uint16_t port)
+    Server::HttpServer(const std::string& host, std::uint16_t port)
         : host_(host),
-          port_(port),
-          sock_fd_(0),
-          running_(false),
-          kq_(0),
-          sleep_times_(10, 100) {
-        CreateSocket();
+        port_(port),
+        sock_fd_(0),
+        running_(false),
+        kq_(0),
+        sleep_times_(10, 100) {
+            CreateSocket();
         // SetUpKQueue();
     }
 
     // Destructor
-    HttpServer::~HttpServer() {
+    Server::~HttpServer() {
         Stop();
     }
 
     // Create the server socket
-    void HttpServer::CreateSocket() {
+    void Server::CreateSocket() {
         // Create a socket
         sock_fd_ = socket(AF_INET, SOCK_STREAM, 0);
         if (sock_fd_ == -1) {
@@ -56,13 +55,13 @@ namespace HttpServer {
     }
 
     // Set up the KQueue descriptor
-    void HttpServer::SetUpKQueue() {
+    void Server::SetUpKQueue() {
         // Implement KQueue setup logic
         // Example: kq_ = kqueue();
     }
 
     // Start the HTTP server
-    void HttpServer::Start() {
+    void Server::Start() {
         // Set the socket to listen for incoming connections
         if (listen(sock_fd_, kBacklogSize) == -1) {
             throw std::runtime_error("Failed to listen for connections");
@@ -78,7 +77,7 @@ namespace HttpServer {
     }
 
     // Stop the HTTP server: Close sockets, join threads 
-    void HttpServer::Stop() {
+    void Server::Stop() {
         // Stop the listener thread
         if (listener_thread_.joinable()) {
             listener_thread_.join();
@@ -105,7 +104,7 @@ namespace HttpServer {
     }
 
     // Listen for incoming connections
-    void HttpServer::Listen() {
+    void Server::Listen() {
         struct sockaddr_in clientAddress;
         socklen_t clientAddressLength = sizeof(clientAddress);
 
@@ -128,7 +127,7 @@ namespace HttpServer {
     }
 
     // Add a request handler
-    void HttpServer::AddRequestHandler(const std::string& path, HttpMethod method, void (*handler)()) {
+    void Server::AddRequestHandler(const std::string& path, HttpMethod method, void (*handler)()) {
         // Implement request handler addition logic
 
         // Example: 
@@ -137,7 +136,7 @@ namespace HttpServer {
     }
 
     // Process events in a worker thread --> CHANGE THIS to kqueue
-    void HttpServer::ProcessEvents(int worker_id) {
+    void Server::ProcessEvents(int worker_id) {
         // Implement event processing logic for worker thread
         EventData *data;
         int epoll_fd = worker_epoll_fd_[worker_id];
@@ -177,12 +176,12 @@ namespace HttpServer {
     }
 
     // Handle a KQueue event
-    void HttpServer::HandleKQueueEvent(int kq_fd, EventData* event, std::uint32_t events) {
+    void Server::HandleKQueueEvent(int kq_fd, EventData* event, std::uint32_t events) {
         // Implement event handling logic for KQueue
     }
 
     // Handle HTTP data by parsing request and returning the response from handler
-    void HttpServer::HandleHttpData(const EventData& request, EventData* response) {
+    void Server::HandleHttpData(const EventData& request, EventData* response) {
         std::string request_string(request.buffer), response_string;
         HttpRequest http_request;
         HttpResponse http_response;
@@ -208,7 +207,7 @@ namespace HttpServer {
     }
 
     // Handle an HTTP request by calling the handler for the request 
-    HttpResponse HttpServer::HandleHttpRequest(const HttpRequest& request) {
+    HttpResponse Server::HandleHttpRequest(const HttpRequest& request) {
         HttpMethod method = request.method();
         std::string path = request.uri();
 
@@ -225,7 +224,7 @@ namespace HttpServer {
     }
 
     // Control KQueue event
-    void HttpServer::control_kqueue_event(int kq_fd, int op, int fd,
+    void Server::control_kqueue_event(int kq_fd, int op, int fd,
                                           std::uint32_t events, void* data) {
         // Implement control of KQueue events
     }

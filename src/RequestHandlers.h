@@ -1,12 +1,17 @@
 // RequestHandlerRegistry.h
-#ifndef REQUEST_HANDLER_REGISTRY_H
-#define REQUEST_HANDLER_REGISTRY_H
+#ifndef REQUEST_HANDLER_H
+#define REQUEST_HANDLER_H
 
-#include "Server.h" // Include your server's header file
+#include "Server.h"
+#include "Uri.h"
+#include "Message.h"
 
-class RequestHandlerRegistry {
-public:
-    static void RegisterHandlers(HttpServer& server);
-};
+
+namespace Server {
+    class RequestHandlerRegistry {
+        public:
+            static void RegisterHandlers(Server::HttpServer& server);
+    };
+}
 
 #endif
