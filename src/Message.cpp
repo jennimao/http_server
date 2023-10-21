@@ -75,7 +75,7 @@ void string_to_request(const std::string& request_string, HTTPRequest* new_reque
                 }
 
 
-                size_t nextNewLine = new_request->raw_request.find('\n'); 
+                size_t nextNewLine = new_request->raw_request.find("\r\n"); 
 
                 if(nextNewLine != std::string::npos)
                 {
@@ -94,6 +94,33 @@ void string_to_request(const std::string& request_string, HTTPRequest* new_reque
                     return;
                 }
             break;
+
+            case ProcessingStage::HOST:
+                size_t nextColon = new_request->raw_request.substr(new_request->index, new_request->stringLen).find(":");
+                nextNewLine = new_request->raw_request.substr(nextColon, new_request->stringLen).find("\r\n");
+
+                if(nextColon != std::string::npos && nextNewLine != std::string::npos)
+                {
+                    new_request->host.setTarget(new_request->raw_request.substr(nextColon + 1, nextNewLine));
+                    new_request->index = nextNewLine + 1;
+                }
+                else
+                {
+                    return;
+                }
+            case ProcessingStage::HEADERS:
+                //if there is a CRLF and a colon in a line, its a header
+                //if just CRLF its message body
+                //how to know when message is over??? idk yet
+                nextColon = new_request->raw_request.substr(new_request->index, new_request->stringLen).find(":");
+                nextNewLine = new_request->raw_request.substr(nextColon, new_request->stringLen).find("\r\n");
+
+                if(nextColon != std::string::npos && nextNewLine != std::string::npos)
+                {
+                    whichHeader(new_request, new_request->raw_request.substr(new_request->index, nextColon), new_request->raw_request.substr(nextColon + 1, nextNewLine));
+                }
+                
+
 
         }
         
@@ -136,6 +163,32 @@ bool isVersion11(HTTPRequest* request)
 
     return false;
  
+}
+
+int whichHeader(HTTPRequest* request, std::string header, std::string value)
+{
+    //headers we accept rn
+    //Accept
+    //User-Agent
+    //If-Modified-Since
+    //Connection
+    //Authorization
+
+    //finding which header:
+    if (header[0] == 'U')
+    {
+        parseUserAgent(request, header, value);
+    }
+    else if (header[0] = 'I')
+    {
+        parseIfModified(request, header, value);
+    }
+    else if (header[0] == 'C')
+    {
+        parseConnection(request, header, value);
+    }
+
+
 }
 
 /* std::string to_string(const HttpResponse& response, bool send_content = true){

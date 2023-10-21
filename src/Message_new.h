@@ -25,6 +25,8 @@ enum Version {
 
 class VirtualHost {
     std::string virtualHost;
+   
+    public:
 
     void setTarget(std::string newHost) {
         virtualHost = newHost;
