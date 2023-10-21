@@ -4,8 +4,9 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <unistd.h> 
+#include "Message_new.h"
 
-struct HttpRequest {
+/* struct HttpRequest {
     std::string method;
     std::string uri;
     std::string headers;
@@ -43,7 +44,7 @@ HttpRequest ParseHttpRequest(int clientSocket) {
     }
 
     return request;
-}
+} */
 
 int main() {
     // Create a socket
@@ -70,17 +71,44 @@ int main() {
         return 1;
     }
 
+    std::cout << "hello1\n";
     struct sockaddr_in clientAddress;
     socklen_t clientAddressLength = sizeof(clientAddress);
-    int clientSocket = accept(serverSocket, (struct sockaddr*)&clientAddress, &clientAddressLength);
-
+    int clientSocket; 
+    std::cout << "hello2\n";
     // Accept incoming connections and handle client requests
     while (true) {
         clientSocket = accept(serverSocket, (struct sockaddr*)&clientAddress, &clientAddressLength);
+        std::cout << "hello\n";
         if (clientSocket == -1) {
             std::cerr << "Error accepting client connection" << std::endl;
         } else {
-            HttpRequest request = ParseHttpRequest(clientSocket);
+           
+            char buffer[8192]; 
+            ssize_t bytesRead = recv(clientSocket, buffer, sizeof(buffer), 0);
+            if (bytesRead == -1) 
+            {
+                std::cerr << "Error reading from client" << std::endl;
+                break;
+            }
+
+            HTTPRequest myRequest;
+            string_to_request(buffer, &myRequest);
+            if(myRequest.method == MethodType::POST)
+            {
+                std::cout << "Ok method \n";
+            }
+
+            std::cout << "Target: " << myRequest.target.getTarget() << "\n";
+
+            if(myRequest.version == Version::HTTP_1_1)
+            {
+                std::cout << "Ok version \n";
+            }
+
+
+            std::cout << buffer;
+
 
             // Handle the request, e.g., based on the method and URI.
 

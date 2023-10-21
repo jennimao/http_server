@@ -16,8 +16,9 @@ find_package(Boost REQUIRED COMPONENTS unit_test_framework)
 add_library(Boost::Boost INTERFACE IMPORTED)
 
 set(SRC_FILES
-    src/Server.cpp
-    src/Main.cpp 
+    #src/Server.cpp
+    src/Main.cpp
+    src/Message.cpp 
 )
 
 set(INCLUDE_DIRS
@@ -27,8 +28,8 @@ set(INCLUDE_DIRS
 
 # Add test source files.
 set(TEST_SRC_FILES
-    test/TestRequestHandler.cpp
-    test/TestServer.cpp
+    #test/TestRequestHandler.cpp
+    #test/TestServer.cpp
 )
 
 add_executable(Http ${SRC_FILES})
