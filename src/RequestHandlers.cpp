@@ -5,6 +5,8 @@
 #include "Uri.h"
 
 
+namespace simple_http_server {
+
 HttpResponse RequestHandlers::HandleGetRequest(const HttpRequest& request) {
     // Handle GET requests here and return an appropriate response
     if (request.headers.find("Host") == request.headers.end()) {
@@ -50,4 +52,4 @@ void RequestHandlers::RegisterHandlers(HttpServer& server) {
 
     // Register all 50 request handlers here
 }
-
+}

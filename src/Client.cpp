@@ -45,7 +45,7 @@ private:
 };
 
 int main() {
-    Client client("0.0.0.0", 8080);
+    Client client("localhost", 8080);
     client.connectAndSend("Hello, Server!");
     
     return 0;
