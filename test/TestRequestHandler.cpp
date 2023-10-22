@@ -22,7 +22,7 @@ public:
 
 BOOST_AUTO_TEST_CASE(ServerStartStop) {
     // Test starting and stopping the HTTP server.
-    MockServer server;
+    MockRequestHandler server;
     BOOST_CHECK_NO_THROW(server.start());  // Check if the server starts without exceptions.
     BOOST_CHECK_NO_THROW(server.stop());   // Check if the server stops without exceptions.
 }
