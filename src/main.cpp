@@ -46,7 +46,18 @@ HttpRequest ParseHttpRequest(int clientSocket) {
     return request;
 } */
 
+void printAllFields(HTTPRequest* request);
+
 int main() {
+
+    //test
+    std::string myString  = "GET /resource/path HTTP/1.1\r\nHost: example.com\r\nAccept: text/html, application/json\r\nUser-Agent: MyUserAgent/1.0\r\nIf-Modified-Since: Tue, 15 Nov 2022 08:12:31 GMT\r\nConnection: close\r\nAuthorization: Bearer YourAccessToken\r\n\r\n";
+    HTTPRequest myOtherRequest;
+
+    string_to_request(myString, &myOtherRequest);
+    printAllFields(&myOtherRequest);
+
+
     // Create a socket
     int serverSocket = socket(AF_INET, SOCK_STREAM, 0);
     if (serverSocket == -1) {
@@ -70,16 +81,13 @@ int main() {
         std::cerr << "Error listening on socket" << std::endl;
         return 1;
     }
-
-    std::cout << "hello1\n";
+   
     struct sockaddr_in clientAddress;
     socklen_t clientAddressLength = sizeof(clientAddress);
     int clientSocket; 
-    std::cout << "hello2\n";
     // Accept incoming connections and handle client requests
     while (true) {
         clientSocket = accept(serverSocket, (struct sockaddr*)&clientAddress, &clientAddressLength);
-        std::cout << "hello\n";
         if (clientSocket == -1) {
             std::cerr << "Error accepting client connection" << std::endl;
         } else {
@@ -92,22 +100,16 @@ int main() {
                 break;
             }
 
-            HTTPRequest myRequest;
-            string_to_request(buffer, &myRequest);
-            if(myRequest.method == MethodType::POST)
-            {
-                std::cout << "Ok method \n";
-            }
-
-            std::cout << "Target: " << myRequest.target.getTarget() << "\n";
-
-            if(myRequest.version == Version::HTTP_1_1)
-            {
-                std::cout << "Ok version \n";
-            }
-
-
             std::cout << buffer;
+
+            //ParsingTest
+            HTTPRequest myRequest;
+            int ret = string_to_request(buffer, &myRequest);
+            std::cout << "Ret" << ret << "\n";
+            printAllFields(&myRequest);
+
+
+            // std::cout << buffer;
 
 
             // Handle the request, e.g., based on the method and URI.
@@ -122,4 +124,47 @@ int main() {
     close(serverSocket);
 
     return 0;
+}
+
+void printAllFields(HTTPRequest* request)
+{
+    std::cout << "PRINT ALL FIELDS\n";
+    //method
+    if(request->method == MethodType::GET)
+    {
+        std::cout << "Method: GET\n";
+    }
+    else if(request->method == MethodType::POST)
+    {
+        std::cout << "Method: POST\n";
+    }
+    else
+    {
+        std::cout << "Method: Bad\n";
+    }
+
+    //Target
+    std::cout << "Target:" <<request->target.getStr() << "\n";
+
+    //Version
+    if(request->version == Version::HTTP_1_1)
+    {
+       std::cout << "Version: 1.1\n";
+    }
+    else
+    {
+        std::cout << "Version: BAD\n";
+    }
+
+    //Virtual Host
+    std::cout << "VirtualHost:" <<request->host.getStr() << "\n";
+
+    //Headers
+    std::cout << "AcceptHeader:" <<request->headers.accept.getStr() << "\n";
+    std::cout << "UserAgentHeader:" <<request->headers.user_agent.getStr() << "\n";
+    std::cout << "IfModifiedSince:" <<request->headers.modified.getStr() << "\n";
+    std::cout << "ConnectionHeader:" <<request->headers.connection.getStr() << "\n";
+    std::cout << "AuthorizationHeader:" <<request->headers.authorization.getStr() << "\n";
+
+    return;
 }

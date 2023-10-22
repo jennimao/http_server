@@ -13,7 +13,7 @@ class RequestTarget {
     void setTarget(std::string newTarget) {
         requestTarget = newTarget;
     }
-    std::string getTarget(void) {
+    std::string getStr(void) {
         return requestTarget;
     }
 };
@@ -31,11 +31,18 @@ class VirtualHost {
     void setTarget(std::string newHost) {
         virtualHost = newHost;
     }
+    void parse(std::string newHost)
+    {
+        setTarget(newHost);
+    }
+    std::string getStr(void)
+    {
+        return virtualHost;
+    }
 };
 
 enum MediaType{
     TEXT,
-    WILDCARD,
     HTML,
     IMAGE,
     PNG,
@@ -43,10 +50,35 @@ enum MediaType{
     NONE
 };
 
+static std::string acceptedTypesStrings[] = {"text", "html", "image", "png", "jpeg"};
+
 class AcceptHeader {
     std::string raw_header;
-    MediaType media_category = MediaType::NONE;
-    MediaType media__sub_category = MediaType::NONE;
+    std::array<std::tuple<MediaType, MediaType>, 2> accepted_types;
+
+    public:
+
+    void parse(std::string newHeader)
+    {
+        //saving raw val
+        raw_header = newHeader;
+
+        /* //parsing
+        size_t index = 0;
+        size_t value_len = newHeader.length();
+
+        while(index < value_len)
+        {
+            newHeader.substr(index, value_len).find(',');
+            if()
+        } */
+
+    }
+    
+    std::string getStr(void)
+    {
+        return raw_header;
+    }
 };
 
 class UserAgentHeader {
@@ -62,6 +94,16 @@ class UserAgentHeader {
     void setRawHeader(std::string new_raw_header)
     {
         raw_header = new_raw_header;
+    }
+
+    void parse (std::string new_raw_header)
+    {
+        setRawHeader(new_raw_header);
+    }
+     
+    std::string getStr(void)
+    {
+        return raw_header;
     }
 };
 
@@ -79,6 +121,16 @@ class IfModifiedSinceHeader {
     {
         raw_header = new_raw_header;
     }
+
+    void parse (std::string new_raw_header)
+    {
+        setRawHeader(new_raw_header);
+    }
+
+    std::string getStr(void)
+    {
+        return raw_header;
+    }
 };
 
 class ConnectionHeader {
@@ -94,6 +146,16 @@ class ConnectionHeader {
     void setRawHeader(std::string new_raw_header)
     {
         raw_header = new_raw_header;
+    }
+
+    void parse (std::string new_raw_header)
+    {
+        setRawHeader(new_raw_header);
+    }
+
+    std::string getStr(void)
+    {
+        return raw_header;
     }
 };
 
@@ -111,6 +173,16 @@ class AuthorizationHeader {
     {
         raw_header = new_raw_header;
     }
+
+    void parse (std::string new_raw_header)
+    {
+        setRawHeader(new_raw_header);
+    }
+
+    std::string getStr(void)
+    {
+        return raw_header;
+    }
 };
 
 enum ProcessingStage {
@@ -118,7 +190,8 @@ enum ProcessingStage {
     TARGET,
     VERSION,
     HOST,
-    HEADERS
+    HEADERS,
+    BODY
 };
 
 
@@ -146,4 +219,4 @@ struct HTTPRequest
 
 };
 
-void string_to_request(const std::string& request_string, HTTPRequest* new_request);
+int string_to_request(const std::string& request_string, HTTPRequest* new_request);
