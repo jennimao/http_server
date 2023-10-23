@@ -53,11 +53,11 @@ class HttpServer {
 
         void Start();
         void Stop();
-        void RegisterHttpRequestHandler(const std::string& path, HttpMethod method, const HttpRequestHandler_t callback) {
+        void RegisterHttpRequestHandler(const std::string& path, HttpMethod method, const HttpRequestHandler_t callback) const {
             Uri uri(path);
             request_handlers_[uri].insert(std::make_pair(method, std::move(callback)));
         }
-        void RegisterHttpRequestHandler(const Uri& uri, HttpMethod method, const HttpRequestHandler_t callback) {
+        void RegisterHttpRequestHandler(const Uri& uri, HttpMethod method, const HttpRequestHandler_t callback) const {
             request_handlers_[uri].insert(std::make_pair(method, std::move(callback)));
         }
 
@@ -79,7 +79,7 @@ class HttpServer {
         std::thread worker_threads_[kThreadPoolSize];
         int worker_kqueue_fd_[kThreadPoolSize];
         struct kevent worker_events[kMaxEvents];
-        std::map<Uri, std::map<HttpMethod, HttpRequestHandler_t>> request_handlers_;
+        mutable std::map<Uri, std::map<HttpMethod, HttpRequestHandler_t>> request_handlers_;
         std::mt19937 rng_;
         std::uniform_int_distribution<int> sleep_times_;
 

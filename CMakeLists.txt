@@ -21,7 +21,7 @@ set(SRC_FILES
     src/Server.cpp
     src/Main.cpp 
     src/Message.cpp 
-    # src/RequestHandlers.cpp
+    src/RequestHandlers.cpp
 )
 
 set(INCLUDE_DIRS
