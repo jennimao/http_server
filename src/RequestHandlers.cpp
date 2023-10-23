@@ -36,17 +36,22 @@ struct ContentSelection {
         ContentSelection() : formatArray{} {} 
 };
 
-
-HttpResponse SayHelloHandler(const HttpRequest& request) {
-    HttpResponse response(HttpStatusCode::Ok);
-    response.SetHeader("Content-Type", "text/plain");
-    response.SetContent("Hello, world\n");
-    return response;
-}
-
 void fillInBadResponse(HttpResponse* response)
 {
     return;
+}
+
+namespace fs = std::filesystem;
+
+bool isExecutable(const std::string& filePath) {
+    try {
+        // Use std::filesystem to check file permissions
+        fs::path path(filePath);
+        return fs::status(path).permissions() & fs::perms::owner_exec;
+    } catch (const std::exception& ex) {
+        std::cerr << "Error checking file permissions: " << ex.what() << std::endl;
+        return false;
+    }
 }
 
 //returns the filepath of the resource to return
@@ -67,7 +72,7 @@ std::string contentSelection(const HttpRequest& request, HttpResponse* response,
             }
             if (entry.is_regular_file() && entry.path().filename() == "index.html") 
             {
-                indexPath = filepath + "/index_m.html";
+                indexPath = filepath + "/index.html";
             }
 
         }
@@ -128,14 +133,14 @@ HttpResponse GetHandler(const HttpRequest& request)
 {
     std::cout << "hello!!!\n";
     //for testing, need to implement virtualHosts
-    virtualHosts.insert({"root", "/Users/samdetor/http_server/src"});
-    
+    //virtualHosts.insert({"root", "/Users/samdetor/http_server/src"});
+    virtualHosts.insert({"root", "/Users/jennymao/Documents/repos/http_server/src"});
     HttpResponse ourResponse;
     ContentSelection contentSelectionCriteria;
     std::string root;
     //validate URI
     std::string our_uri = request.uri().path();
-     if(our_uri[0] != '/' && our_uri[0] != 'h')
+    if(our_uri[0] != '/' && our_uri[0] != 'h')
     {
         std::cerr << "Bad URL1: " << our_uri[0] << "\n";
         fillInBadResponse(&ourResponse);
@@ -231,7 +236,7 @@ HttpResponse GetHandler(const HttpRequest& request)
         contentSelectionCriteria.ifModifiedSince = compareable_time;
 
     }
-     if(!request.headers()["Connection"].empty()) //request.headers().find("Connection") != request.headers().end())
+    if(!request.headers()["Connection"].empty()) //request.headers().find("Connection") != request.headers().end())
     {
         std::vector<std::string> connectionAcceptedValues = {"close", "keep-alive"};
         if(request.headers()["Connection"].compare(connectionAcceptedValues[0]))
@@ -370,42 +375,54 @@ void RequestHandlers::RegisterPostHandlers(HttpServer& server) {
         // TOOD: need to replace this with the request path -- have to start at root
         std::string cgiScriptPath = "../cgi-bin/script_cgi.pl";
 
-        // Execute the CGI script and capture its output
-        std::string command = cgiScriptPath;
+        // TODO: check if the cgiScriptPath is in the list of existing resources
+        // do I also create the list of existing resources in this file? or is that 
+        // up to a file system survey
 
-        // Use popen to execute the CGI script and read its output
-        FILE* cgiProcess = popen(command.c_str(), "w");
-        if (!cgiProcess) {
-            // Handle error if the CGI script couldn't be executed
+        // check if mapped file is executable 
+        if (isExecutable(cgiScriptPath)) {
+            
+            // execute the CGI script and capture its output
+            std::string command = cgiScriptPath;
+
+            // use popen to execute the CGI script and read its output
+            FILE* cgiProcess = popen(command.c_str(), "w");
+            if (!cgiProcess) {
+                // handle error if the CGI script couldn't be executed
+                return HttpResponse(HttpStatusCode::InternalServerError);
+            }
+
+            // Write the POST data to the CGI process's stdin
+            fwrite(postData.c_str(), 1, postData.length(), cgiProcess);
+            fclose(cgiProcess);
+
+            // Read and capture the output of the CGI script (stdout)
+            std::string cgiOutput;
+            char buffer[1024];
+            cgiProcess = popen(command.c_str(), "r");
+            if (!cgiProcess) {
+                // Handle error if reading CGI output failed
+                return HttpResponse(HttpStatusCode::InternalServerError);
+            }
+            while (fgets(buffer, sizeof(buffer), cgiProcess) != nullptr) {
+                cgiOutput += buffer;
+            }
+            fclose(cgiProcess);
+
+            // Construct an HTTP response with the CGI output
+            HttpResponse response(HttpStatusCode::Ok);
+            response.SetHeader("Content-Type", "text/plain"); // Set appropriate content type
+            response.SetContent(cgiOutput);
+        }
+        else {
+            // error handling if the mapped file is not executable 
             return HttpResponse(HttpStatusCode::InternalServerError);
         }
-
-        // Write the POST data to the CGI process's stdin
-        fwrite(postData.c_str(), 1, postData.length(), cgiProcess);
-        fclose(cgiProcess);
-
-        // Read and capture the output of the CGI script (stdout)
-        std::string cgiOutput;
-        char buffer[1024];
-        cgiProcess = popen(command.c_str(), "r");
-        if (!cgiProcess) {
-            // Handle error if reading CGI output failed
-            return HttpResponse(HttpStatusCode::InternalServerError);
-        }
-        while (fgets(buffer, sizeof(buffer), cgiProcess) != nullptr) {
-            cgiOutput += buffer;
-        }
-        fclose(cgiProcess);
-
-        // Construct an HTTP response with the CGI output
-        HttpResponse response(HttpStatusCode::Ok);
-        response.SetHeader("Content-Type", "text/plain"); // Set appropriate content type
-        response.SetContent(cgiOutput);
 
         return response;
     };
     
-    server.RegisterHttpRequestHandler("/cgi-bin/script_cgi.pl", HttpMethod::POST, run_cgi);
+    server.RegisterHttpRequestHandler(HttpMethod::POST, run_cgi);
     //server.RegisterHttpRequestHandler("/hello.html", HttpMethod::GET, send_html);
 }
 
