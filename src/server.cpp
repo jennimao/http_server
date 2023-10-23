@@ -276,7 +276,6 @@ void HttpServer::HandleKqueueEvent(int kq, EventData *data, int filter) {
                 ControlKqueueEvent(kq, EV_DELETE, fd, EVFILT_WRITE, response);
                 close(fd);
                 delete response; 
-
             }
         } 
         else {

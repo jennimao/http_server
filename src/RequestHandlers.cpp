@@ -7,49 +7,50 @@
 
 namespace simple_http_server {
 
-HttpResponse RequestHandlers::HandleGetRequest(const HttpRequest& request) {
-    // Handle GET requests here and return an appropriate response
-    if (request.headers.find("Host") == request.headers.end()) {
-        HttpResponse response;
-        response.status = HttpStatusCode::BadRequest;
-        response.content = "400 Bad Request: Host header is missing";
+
+HttpRequestHandler_t SayHelloHandler(const HttpRequest& request) {
+    HttpResponse response(HttpStatusCode::Ok);
+    response.SetHeader("Content-Type", "text/plain");
+    response.SetContent("Hello, world\n");
+    return response;
+}
+
+
+HttpResponse RequestHandlers::RegisterGetHandlers(const HttpServer& server) {
+  // Define and register GET handlers here
+    auto say_hello = [](const HttpRequest& request) -> HttpResponse {
+        HttpResponse response(HttpStatusCode::Ok);
+        response.SetHeader("Content-Type", "text/plain");
+        response.SetContent("Hello, world\n");
         return response;
-    }
+    };
 
-    // Extract the URL and other headers from the request
-    std::string url = request.url;
-    std::string host = request.headers.at("Host");
+    auto send_html = [](const HttpRequest& request) -> HttpResponse {
+        HttpResponse response(HttpStatusCode::Ok);
+        std::string content;
+        content += "<!doctype html>\n";
+        content += "<html>\n<body>\n\n";
+        content += "<h1>Hello, world in an Html page</h1>\n";
+        content += "<p>A Paragraph</p>\n\n";
+        content += "</body>\n</html>\n";
 
-    // Process the request and generate a response
-    HttpResponse response;
-    response.status = HttpStatusCode::Ok;
-    response.content = "Response for GET request to URL: " + url + "\n";
-    response.content += "Host: " + host + "\n";
+        response.SetHeader("Content-Type", "text/html");
+        response.SetContent(content);
+    
+        return response;
+    };
 
-    // Process other headers here if needed
-    for (const auto& header : request.headers) {
-        if (header.first != "Host") {
-            response.content += header.first + ": " + header.second + "\n";
-        }
-    }
-
-    return response;
+    server.RegisterHttpRequestHandler("/", HttpMethod::GET, SayHelloHandler);
+    server.RegisterHttpRequestHandler("/hello.html", HttpMethod::GET, send_html);
 }
 
-HttpResponse RequestHandlers::HandlePostRequest(const HttpRequest& request) {
-    // Handle POST requests here and return an appropriate response
-    HttpResponse response;
-    // ...
-    return response;
-}
 
 void RequestHandlers::RegisterHandlers(HttpServer& server) {
 
-
     // Register GET and POST request handlers
-    server.RegisterHttpRequestHandler(HttpMethod::GET, "<GET_URL>", RequestHandlers::HandleGetRequest);
-    server.RegisterHttpRequestHandler(HttpMethod::POST, "<POST_URL>", RequestHandlers::HandlePostRequest);
+    RegisterGetHandlers(server);
 
     // Register all 50 request handlers here
 }
+
 }

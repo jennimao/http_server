@@ -19,8 +19,7 @@ using simple_http_server::HttpResponse;
 using simple_http_server::HttpServer;
 using simple_http_server::HttpStatusCode;
 
-void ensure_enough_resource(int resource, std::uint32_t soft_limit,
-                            std::uint32_t hard_limit) {
+void ensure_enough_resource(int resource, std::uint32_t soft_limit, std::uint32_t hard_limit) {
   rlimit new_limit, old_limit;
 
   new_limit.rlim_cur = soft_limit;
@@ -72,6 +71,8 @@ int main(void) {
   server.RegisterHttpRequestHandler("/", HttpMethod::GET, say_hello);
   server.RegisterHttpRequestHandler("/hello.html", HttpMethod::HEAD, send_html);
   server.RegisterHttpRequestHandler("/hello.html", HttpMethod::GET, send_html);
+
+  //RequestHandlers::RegisterHandlers(server);
 
   try {
     // std::cout << "Setting new limits for file descriptor count.." <<

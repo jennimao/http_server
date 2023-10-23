@@ -10,9 +10,11 @@ namespace simple_http_server {
 
 class RequestHandlers {
 public:
-    static HttpResponse HandleGetRequest(const HttpRequest& request);
-    static HttpResponse HandlePostRequest(const HttpRequest& request);
     static void RegisterHandlers(HttpServer& server);
+    static HttpResponse RegisterGetHandlers(const HttpServer& server);
+
+private: 
+
 };
 
 } // namespace simple_http_server
