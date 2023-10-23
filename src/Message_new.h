@@ -1,4 +1,13 @@
 #include <string>
+#include <unordered_map>
+#include <iostream>
+#include <cstring>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <unistd.h> 
+#include <arpa/inet.h>
+
 enum MethodType {
     GET,
     POST,
@@ -214,7 +223,8 @@ struct HTTPRequest
     RequestTarget target = RequestTarget();
     Version version = Version::NO_VERSION;
     VirtualHost host = VirtualHost();
-    Headers headers;
+    std::unordered_map < std::string, std::string > headers;
+    //Headers headers;
     std::string body; //right now just holds the rest of the message
 
 };

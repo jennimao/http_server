@@ -160,11 +160,17 @@ void printAllFields(HTTPRequest* request)
     std::cout << "VirtualHost:" <<request->host.getStr() << "\n";
 
     //Headers
-    std::cout << "AcceptHeader:" <<request->headers.accept.getStr() << "\n";
+    // Iterate through the map and print the values
+    for (const auto& pair : request->headers) {
+        // 'pair.second' represents the value associated with the key 'pair.first'
+        std::cout << pair.first << ", " << pair.second << std::endl;
+    }
+
+    /*std::cout << "AcceptHeader:" <<request->headers.accept.getStr() << "\n";
     std::cout << "UserAgentHeader:" <<request->headers.user_agent.getStr() << "\n";
     std::cout << "IfModifiedSince:" <<request->headers.modified.getStr() << "\n";
     std::cout << "ConnectionHeader:" <<request->headers.connection.getStr() << "\n";
-    std::cout << "AuthorizationHeader:" <<request->headers.authorization.getStr() << "\n";
+    std::cout << "AuthorizationHeader:" <<request->headers.authorization.getStr() << "\n";*/
 
     return;
 }

@@ -1,10 +1,3 @@
-#include <iostream>
-#include <cstring>
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <unistd.h> 
-#include <arpa/inet.h>
 #include "Message_new.h"
 
 bool isVersion11(HTTPRequest* request);
@@ -114,7 +107,7 @@ int string_to_request(const std::string& request_string, HTTPRequest* new_reques
                 {
                     std::cout << "host " << new_request->raw_request.substr(nextColon + 2, nextNewLine - 1) << "\n";
                     std::cout << "newIndex: " << nextNewLine + 1 + nextColon << "\n";
-                    new_request->host.setTarget(new_request->raw_request.substr(nextColon + 2, nextNewLine));
+                    new_request->host.setTarget(new_request->raw_request.substr(nextColon + 2, nextNewLine - 1));
                     new_request->index = nextNewLine + 2 + nextColon;
                     new_request->requestStage = ProcessingStage::HEADERS;
                 }
@@ -136,7 +129,8 @@ int string_to_request(const std::string& request_string, HTTPRequest* new_reques
                 if(nextColon != std::string::npos && nextNewLine != std::string::npos && nextColon + new_request->index < nextNewLine + nextColon + new_request->index)
                 {
                     std::cout << "here\n";
-                    whichHeader(new_request, new_request->raw_request.substr(new_request->index, nextColon), new_request->raw_request.substr(nextColon + 1 + new_request->index, nextNewLine));
+                    new_request->headers.insert({new_request->raw_request.substr(new_request->index, nextColon), new_request->raw_request.substr(nextColon + 1 + new_request->index, nextNewLine)});
+                    //whichHeader(new_request, new_request->raw_request.substr(new_request->index, nextColon), new_request->raw_request.substr(nextColon + 1 + new_request->index, nextNewLine));
                     new_request->index = nextNewLine + 2 + new_request->index + nextColon;
                 }
                 else if(nextNewLine != std::string::npos)
@@ -216,7 +210,7 @@ bool isVersion11(HTTPRequest* request)
  
 }
 
-int whichHeader(HTTPRequest* request, std::string header, std::string value)
+/* int whichHeader(HTTPRequest* request, std::string header, std::string value)
 {
     //headers we accept rn
     //Accept
@@ -261,7 +255,7 @@ int whichHeader(HTTPRequest* request, std::string header, std::string value)
         std::cout << "Header " << header << "\n\n" <<  "Value: " << value << "\n\n";  
     }
     return 0;
-}
+} */
 
 /* std::string to_string(const HttpResponse& response, bool send_content = true){
 
