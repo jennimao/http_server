@@ -1,13 +1,11 @@
 # http_server
 
-# cached version of URI
+## chunked response 
 
-# chunked response 
+## heartbeat monitoring 
 
-# heartbeat monitoring 
+## thread pool structure 
 
-# thread pool structure 
+## asynchronous I/O using select 
 
-# asynchronous I/O using select 
-
-# performance and benchmarking methodlogy 
+## performance and benchmarking methodlogy 

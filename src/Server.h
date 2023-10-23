@@ -71,15 +71,16 @@ class HttpServer {
     private:
         static constexpr int kBacklogSize = 1000;
         static constexpr int kMaxConnections = 10000;
-        static constexpr int kMaxEvents = 10000;
-        static constexpr int kThreadPoolSize = 5;
+        static constexpr int kMaxEvents = 50;
+        static constexpr int kThreadPoolSize = 4;
 
         std::string host_;
         std::uint16_t port_;
         int sock_fd_;
         bool running_;
         std::thread listener_thread_;
-        std::thread worker_threads_[kThreadPoolSize];
+        std::vector<std::thread> workers;
+        //std::thread worker_threads_[kThreadPoolSize];
         int worker_kqueue_fd_[kThreadPoolSize];
         struct kevent worker_events[kMaxEvents];
         std::map<Uri, std::map<HttpMethod, HttpRequestHandler_t>> request_handlers_;
@@ -88,8 +89,9 @@ class HttpServer {
         std::uniform_int_distribution<int> sleep_times_;
 
         void CreateSocket();
-        void SetUpKqueue();
-        void Listen();
+        void WorkerThread(int workerID, int listeningSocket);
+        //void SetUpKqueue();
+        //void Listen();
         void ProcessEvents(int worker_id);
         void HandleKqueueEvent(int kq, EventData *data, int filter);
         void HandleHttpData(const EventData& request, EventData* response);

@@ -61,23 +61,33 @@ void HttpServer::Start() {
         throw std::runtime_error(msg.str());
     }
 
-    SetUpKqueue();
-    running_ = true;
-    listener_thread_ = std::thread(&HttpServer::Listen, this);
+    // Create worker threads
+    //std::vector<std::thread> workers;
     for (int i = 0; i < kThreadPoolSize; i++) {
-        worker_threads_[i] = std::thread(&HttpServer::ProcessEvents, this, i);
+        workers.emplace_back(&HttpServer::WorkerThread, this, i, sock_fd_);
     }
+
+    log("successfully created worker threads ");
+
+    // Set running_ to true
+    running_ = true;
 }
 
 void HttpServer::Stop() {
     running_ = false;
-    listener_thread_.join();
+    /*listener_thread_.join();
     for (int i = 0; i < kThreadPoolSize; i++) {
         worker_threads_[i].join();
+    }*/
+
+    // Join worker threads
+    for (auto& worker : workers) {
+        worker.join();
     }
+    /*
     for (int i = 0; i < kThreadPoolSize; i++) {
         close(worker_kqueue_fd_[i]);
-    }
+    }*/
     close(sock_fd_);
 }
 
@@ -92,83 +102,102 @@ void HttpServer::CreateSocket() {
     }
 }
 
-// create a kqueue event loop for each worker thread 
-void HttpServer::SetUpKqueue() {
-    for (int i = 0; i < kThreadPoolSize; i++) {
-        if ((worker_kqueue_fd_[i] = kqueue()) < 0) {
-            throw std::runtime_error("Failed to create kqueue");
-        }
-    }
-}
 
-void HttpServer::Listen() {
-    EventData *client_data;
-    sockaddr_in client_address;
-    socklen_t client_len = sizeof(client_address);
-    int client_fd;
-    int current_worker = 0;
+void HttpServer::WorkerThread(int workerID, int listeningSocket) {
+    EventData *clientData;
+    EventData *data; 
+    sockaddr_in clientAddress;
+    socklen_t clientLen = sizeof(clientAddress);
+    int clientSocket;
+    int currentWorker = 0;
     bool active = true;
 
-    // create a kqueue for monitoring events on listening thread 
+
+    struct timespec timeout;
+    timeout.tv_sec = 3;  // 5 seconds
+    timeout.tv_nsec = 0; // 0 nanoseconds
+
+    // create a kqueue for this worker thread
     int kq = kqueue();
     if (kq == -1) {
-        return; 
+        perror("kqueue");
+        return;
     }
 
-    // register the listening socket for monitoring read events 
-    ControlKqueueEvent(kq, EV_ADD, sock_fd_, EVFILT_READ, NULL);
+    // register the listening socket with the worker's kqueue
+    ControlKqueueEvent(kq, EV_ADD, listeningSocket, EVFILT_READ, &timeout);
+    // there is another function to do this with 
 
-    // accept new connections and distribute tasks to worker threads
+
+    struct kevent events[kMaxEvents];
     while (running_) {
-        struct timespec timeout = {0}; // non blocking 
-
-        // monitor and retrieve events from a kqueue 
-        int num_events = kevent(kq, NULL, 0, worker_events, kThreadPoolSize, &timeout);
-        if (num_events <= 0) {
-            active = false; 
+        // if there are no events to process, briefly sleep 
+        if (!active) {
+        std::this_thread::sleep_for(
+            std::chrono::microseconds(sleep_times_(rng_)));
+        }
+        
+        // monitor and retrieve events from kqueue 
+        int numEvents = kevent(kq, nullptr, 0, events, kMaxEvents, &timeout);
+        if (numEvents <= 0) {
+            active = false;
             continue;
         }
-        // iterate through the retrieved events and distribute to workers 
-        for (int i = 0; i < num_events; i++) {
-            const struct kevent &event = worker_events[i]; 
 
-            // event for reading data is available 
-            if (event.ident == sock_fd_) {
-                // accept the client socket and set to non-blocking 
-                client_fd = accept(sock_fd_, (sockaddr *)&client_address, &client_len);
-                if (client_fd < 0) {
+        log("worker " + std::to_string(workerID) + " is running");
+
+
+        // iterate through the retrieved events and handle them 
+        for (int i = 0; i < numEvents; ++i) {
+            if (events[i].ident == listeningSocket) {
+                // accept client socket 
+                clientSocket = accept(listeningSocket, (sockaddr *)&clientAddress, &clientLen);
+                if (clientSocket < 0) {
                     active = false;
                     continue;
                 }
-                else { 
-                    // set the accepted socket to non-blocking mode
-                    int flags = fcntl(client_fd, F_GETFL, 0);
+                else {
+                    // set the accepted socket to non-blocking mode 
+                    int flags = fcntl(clientSocket, F_GETFL, 0);
                     if (flags == -1) {
-                        close(client_fd);
-                    } 
+                        close(clientSocket);
+                    }
                     else {
                         flags |= O_NONBLOCK;
-                        if (fcntl(client_fd, F_SETFL, flags) == -1) {
-                            close(client_fd);
+                        if (fcntl(clientSocket, F_SETFL, flags) == -1) {
+                            close(clientSocket);
                         }
                     }
+
+                    clientData = new EventData();
+                    clientData->fd = clientSocket;
+                    ControlKqueueEvent(kq, EV_ADD, clientSocket, EVFILT_READ, clientData);
+
+                    std::cout << "Worker " << workerID << " accepted connection on socket " << clientSocket << std::endl;
+                }
+            }
+            else {
+                // process client here 
+                active = true; 
+                const struct kevent &current_event = events[i];
+                data = reinterpret_cast<EventData *>(current_event.udata);
+
+                if (current_event.filter == EVFILT_READ) {
+                    // handle read event
+                    HandleKqueueEvent(kq, data, EVFILT_READ);
+                } 
+                else if (current_event.filter == EVFILT_WRITE) {
+                    // handle write event
+                    HandleKqueueEvent(kq, data, EVFILT_WRITE);
+                } 
+                else {
+                    log("unexpected event");
+                    // handle unexpected by removing the event 
+                    ControlKqueueEvent(kq, EV_DELETE, data->fd, current_event.filter);
+                    close(data->fd);
+                    delete data; 
                 }
 
-                active = true;
-                client_data = new EventData();
-                client_data->fd = client_fd;
-                // distributes the client connection to a worker thread
-                log("distributing the client connection to a worker thread");
-                log(std::to_string(current_worker)); 
-                ControlKqueueEvent(worker_kqueue_fd_[current_worker], EV_ADD, client_fd, EVFILT_READ, client_data);
-                current_worker++;
-                if (current_worker == HttpServer::kThreadPoolSize) current_worker = 0;
-            }
-
-            // if there are no events to process, briefly sleep 
-            if (!active) {
-            std::this_thread::sleep_for(
-                std::chrono::microseconds(sleep_times_(rng_)));
             }
         }
     }
@@ -225,12 +254,8 @@ void HttpServer::ProcessEvents(int worker_id) {
 void HttpServer::HandleKqueueEvent(int kq, EventData *data, int filter) {
     int fd = data->fd;
     EventData *request, *response;
-    log("handling kqueue event");
-    log(std::to_string(kq));
-
     // read event 
     if (filter == EVFILT_READ) {
-        log("reading data!");
         request = data;
         ssize_t byte_count = recv(fd, request->buffer, kMaxBufferSize, 0); // read data from client
 
@@ -239,13 +264,11 @@ void HttpServer::HandleKqueueEvent(int kq, EventData *data, int filter) {
             response = new EventData();
             response->fd = fd;
             HandleHttpData(*request, response);
-            log("control kqueue event once we have fully received the message");
             ControlKqueueEvent(kq, EV_ADD, fd, EVFILT_WRITE, response); // write response to client  
             delete request; 
         } 
         // client has closed connection
         else if (byte_count == 0) {  
-            log("client has closed connection");
             ControlKqueueEvent(kq, EV_DELETE, fd, EVFILT_READ, nullptr);
             close(fd);
             delete request; 
@@ -253,11 +276,9 @@ void HttpServer::HandleKqueueEvent(int kq, EventData *data, int filter) {
         else {
             if (errno == EAGAIN || errno == EWOULDBLOCK) {  // retry
                 request->fd = fd;
-                log("try again");
                 ControlKqueueEvent(kq, EV_ADD, fd, EVFILT_READ, request);
             } 
             else {  // other error
-                log("another error");
                 ControlKqueueEvent(kq, EV_DELETE, fd, EVFILT_READ, nullptr);
                 close(fd);
                 delete request;
@@ -279,6 +300,7 @@ void HttpServer::HandleKqueueEvent(int kq, EventData *data, int filter) {
             } 
             // the entire message has been written
             else {   
+                // TODO: implement keep alive functionality 
                 request = new EventData();
                 request->fd = fd;
                 ControlKqueueEvent(kq, EV_DELETE, fd, EVFILT_WRITE, response);
@@ -288,7 +310,6 @@ void HttpServer::HandleKqueueEvent(int kq, EventData *data, int filter) {
         } 
         else {
             if (errno == EAGAIN || errno == EWOULDBLOCK) {  // retry
-                log("retrying");
                 ControlKqueueEvent(kq, EV_ADD, fd, EVFILT_WRITE, response);
             } 
             else {  // other error
@@ -352,7 +373,6 @@ HttpResponse HttpServer::HandleHttpRequest(const HttpRequest &request) {
 void HttpServer::ControlKqueueEvent(int kq, int op, int fd, std::uint32_t events, void *data) {
     struct kevent kev; 
     EV_SET(&kev, fd, events, EV_ADD, 0, 0, data);
-    log("control kqueue event");
 
     if (kevent(kq, &kev, 1, NULL, 0, NULL) == -1) {
         if (op == EV_DELETE && errno == ENOENT) {
