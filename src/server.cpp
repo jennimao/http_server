@@ -20,6 +20,10 @@
 #include "Message.h"
 #include "Uri.h"
 
+void log(const std::string& message) {
+    std::cout << message << std::endl;
+}
+
 namespace simple_http_server {
 
 HttpServer::HttpServer(const std::string &host, std::uint16_t port)
@@ -53,7 +57,7 @@ void HttpServer::Start() {
 
     if (listen(sock_fd_, kBacklogSize) < 0) {
         std::ostringstream msg;
-        msg << "Failed to listen on port " << port_;
+        msg << "Failed to listen on port" << port_;
         throw std::runtime_error(msg.str());
     }
 
@@ -88,6 +92,7 @@ void HttpServer::CreateSocket() {
     }
 }
 
+// create a kqueue event loop for each worker thread 
 void HttpServer::SetUpKqueue() {
     for (int i = 0; i < kThreadPoolSize; i++) {
         if ((worker_kqueue_fd_[i] = kqueue()) < 0) {
@@ -104,7 +109,7 @@ void HttpServer::Listen() {
     int current_worker = 0;
     bool active = true;
 
-    // create a kqueue for monitoring events 
+    // create a kqueue for monitoring events on listening thread 
     int kq = kqueue();
     if (kq == -1) {
         return; 
@@ -117,19 +122,12 @@ void HttpServer::Listen() {
     while (running_) {
         struct timespec timeout = {0}; // non blocking 
 
-        // if there are no events to process, briefly sleep 
-        if (!active) {
-        std::this_thread::sleep_for(
-            std::chrono::microseconds(sleep_times_(rng_)));
-        }
-
         // monitor and retrieve events from a kqueue 
         int num_events = kevent(kq, NULL, 0, worker_events, kThreadPoolSize, &timeout);
         if (num_events <= 0) {
-            active = false;
-            break; 
+            active = false; 
+            continue;
         }
-
         // iterate through the retrieved events and distribute to workers 
         for (int i = 0; i < num_events; i++) {
             const struct kevent &event = worker_events[i]; 
@@ -159,10 +157,17 @@ void HttpServer::Listen() {
                 active = true;
                 client_data = new EventData();
                 client_data->fd = client_fd;
-                // distributes the client connection to a worker thread 
+                // distributes the client connection to a worker thread
+                log(std::to_string(current_worker)); 
                 ControlKqueueEvent(worker_kqueue_fd_[current_worker], EV_ADD, client_fd, EVFILT_READ, client_data);
                 current_worker++;
                 if (current_worker == HttpServer::kThreadPoolSize) current_worker = 0;
+            }
+
+            // if there are no events to process, briefly sleep 
+            if (!active) {
+            std::this_thread::sleep_for(
+                std::chrono::microseconds(sleep_times_(rng_)));
             }
         }
     }
@@ -206,7 +211,7 @@ void HttpServer::ProcessEvents(int worker_id) {
                 // handle unexpected by removing the event 
                 ControlKqueueEvent(kq, EV_DELETE, data->fd, current_event.filter);
                 close(data->fd);
-                delete data;
+                delete data; 
             }
         }
     }
@@ -216,12 +221,12 @@ void HttpServer::ProcessEvents(int worker_id) {
 void HttpServer::HandleKqueueEvent(int kq, EventData *data, int filter) {
     int fd = data->fd;
     EventData *request, *response;
-
-    std::cout << "Immediate output" << std::flush;
-
+    log("handling kqueue event");
+    log(std::to_string(kq));
 
     // read event 
     if (filter == EVFILT_READ) {
+        log("reading data!");
         request = data;
         ssize_t byte_count = recv(fd, request->buffer, kMaxBufferSize, 0); // read data from client
 
@@ -231,13 +236,13 @@ void HttpServer::HandleKqueueEvent(int kq, EventData *data, int filter) {
             response->fd = fd;
             HandleHttpData(*request, response);
             ControlKqueueEvent(kq, EV_ADD, fd, EVFILT_WRITE, response); // write response to client  
-            delete request;
+            delete request; 
         } 
         // client has closed connection
         else if (byte_count == 0) {  
             ControlKqueueEvent(kq, EV_DELETE, fd, EVFILT_READ, nullptr);
             close(fd);
-            delete request;
+            delete request; 
         } 
         else {
             if (errno == EAGAIN || errno == EWOULDBLOCK) {  // retry
@@ -262,24 +267,27 @@ void HttpServer::HandleKqueueEvent(int kq, EventData *data, int filter) {
             if (byte_count < response->length) {  
                 response->cursor += byte_count;
                 response->length -= byte_count;
-                ControlKqueueEvent(kq, EV_ADD, fd, EVFILT_WRITE, response);
+                ControlKqueueEvent(kq, EV_ADD, fd, EVFILT_WRITE, response); // change event to write 
             } 
             // the entire message has been written
             else {   
                 request = new EventData();
                 request->fd = fd;
-                ControlKqueueEvent(kq, EV_ADD, fd, EVFILT_READ, request); // change event to read
-                delete response;
+                ControlKqueueEvent(kq, EV_DELETE, fd, EVFILT_WRITE, response);
+                close(fd);
+                delete response; 
+
             }
         } 
         else {
             if (errno == EAGAIN || errno == EWOULDBLOCK) {  // retry
+                log("retrying");
                 ControlKqueueEvent(kq, EV_ADD, fd, EVFILT_WRITE, response);
             } 
             else {  // other error
                 ControlKqueueEvent(kq, EV_DELETE, fd, EVFILT_WRITE, nullptr);
                 close(fd);
-                delete response;
+                delete response; 
             }
         }
     }
@@ -293,13 +301,16 @@ void HttpServer::HandleHttpData(const EventData &raw_request, EventData *raw_res
     try {
         http_request = string_to_request(request_string);
         http_response = HandleHttpRequest(http_request);
-    } catch (const std::invalid_argument &e) {
+    } 
+    catch (const std::invalid_argument &e) {
         http_response = HttpResponse(HttpStatusCode::BadRequest);
         http_response.SetContent(e.what());
-    } catch (const std::logic_error &e) {
+    } 
+    catch (const std::logic_error &e) {
         http_response = HttpResponse(HttpStatusCode::HttpVersionNotSupported);
         http_response.SetContent(e.what());
-    } catch (const std::exception &e) {
+    } 
+    catch (const std::exception &e) {
         http_response = HttpResponse(HttpStatusCode::InternalServerError);
         http_response.SetContent(e.what());
     }
@@ -324,8 +335,7 @@ HttpResponse HttpServer::HandleHttpRequest(const HttpRequest &request) {
 }
 
 
-void HttpServer::ControlKqueueEvent(int kq, int op, int fd, 
-                                    std::uint32_t events, void *data) {
+void HttpServer::ControlKqueueEvent(int kq, int op, int fd, std::uint32_t events, void *data) {
     struct kevent kev; 
     EV_SET(&kev, fd, events, EV_ADD, 0, 0, data);
 
@@ -336,5 +346,5 @@ void HttpServer::ControlKqueueEvent(int kq, int op, int fd,
         }
         throw std::runtime_error((op == EV_DELETE) ? "Failed to remove file descriptor" : "Failed to add file descriptor");
     }    
-    }
+}
 }  // namespace simple_http_server

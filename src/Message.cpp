@@ -9,6 +9,8 @@
 #include <string>
 #include <type_traits>
 #include <utility>
+#include <iostream>
+
 
 namespace simple_http_server {
 
@@ -156,7 +158,7 @@ std::string to_string(const HttpResponse& response, bool send_content) {
     oss << p.first << ": " << p.second << "\r\n";
   oss << "\r\n";
   if (send_content) oss << response.content();
-
+  std::cout << oss.str(); // Print the string to stdout
   return oss.str();
 }
 

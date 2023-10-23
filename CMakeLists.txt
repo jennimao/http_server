@@ -13,6 +13,8 @@ find_package(Threads REQUIRED)
 
 # Include Boost.Test.
 find_package(Boost REQUIRED COMPONENTS unit_test_framework)
+find_package(Boost REQUIRED)
+include_directories(${Boost_INCLUDE_DIRS})
 add_library(Boost::Boost INTERFACE IMPORTED)
 
 set(SRC_FILES
