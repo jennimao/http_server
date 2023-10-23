@@ -11,6 +11,7 @@
 #include <chrono>
 #include <iomanip>
 #include <unordered_map>
+#include <fstream>
 #include <boost/archive/iterators/base64_from_binary.hpp>
 #include <boost/archive/iterators/binary_from_base64.hpp>
 #include <boost/archive/iterators/transform_width.hpp>
@@ -31,6 +32,8 @@ struct ContentSelection {
     int connection; //0 is close, 1 is keep-alive 
     std::string username;
     std::string password;
+
+        ContentSelection() : formatArray{} {} 
 };
 
 
@@ -46,48 +49,118 @@ void fillInBadResponse(HttpResponse* response)
     return;
 }
 
-void contentSelection(const HttpRequest& request, HttpResponse* response, ContentSelection* contentCriteria, std::string filepath) {
+//returns the filepath of the resource to return
+std::string contentSelection(const HttpRequest& request, HttpResponse* response, ContentSelection* contentCriteria, std::string filepath) {
+    
+    std::string indexPath;
+    std::string mIndexPath;
+    std::string toReturn;
+    //if the path does not end in a file
     if(std::__fs::filesystem::is_directory(filepath))
     {
-        
+        //checking for index_m.html and index.html
+        for (const auto& entry : std::__fs::filesystem::directory_iterator(filepath)) 
+        {
+            if (entry.is_regular_file() && entry.path().filename() == "index_m.html") 
+            {
+                mIndexPath = filepath + "/index_m.html";
+            }
+            if (entry.is_regular_file() && entry.path().filename() == "index.html") 
+            {
+                indexPath = filepath + "/index_m.html";
+            }
+
+        }
+        //if mobile agent
+        if(contentCriteria->userAgent == 1)
+        {
+            if(!mIndexPath.empty())
+            {
+                toReturn =  mIndexPath;
+            }
+
+        }
+        else if (!indexPath.empty())
+        {
+            toReturn = indexPath;
+        }
+        else
+        {
+            return "NotFound";
+        }
+
     }
+
+    //check accept
+    //if the filepath exists, and the suffix is one of the data types the user supports, put it as the to return
+    //if not, search for files in the dir that have that name with one of the supported suffixes 
+    //if that fails return not found
+
+    //check user agent
+    //if it is not mobile, and requested something with a _m, give it the normal file
+    //if it is mobile, check if the requested file has _m. in the name, if it does, do nothing
+        //if it doesn't, search for files with the requested file name _m with one of the accepted suffixes
+            //if not found return not found response
+
+    //check ifmodifiedsince 
+    //if has been modified, continue
+    //if not been modified, return 304 not modified
+
+    //authorization
+    //if hacess file exists in dir
+        //de-encode the username password associated with it and compare to content selection array values
+        //if it fails
+            //return 401 unauthorized
+        //if it is good
+            //return filepath, all done
+    //if doesn't exist
+        //return filepath, all done
+
+
+
+
+
 }
+
 
 
 HttpResponse GetHandler(const HttpRequest& request) 
 {
+    std::cout << "hello!!!\n";
+    //for testing, need to implement virtualHosts
+    virtualHosts.insert({"root", "/Users/samdetor/http_server/src"});
+    
     HttpResponse ourResponse;
     ContentSelection contentSelectionCriteria;
     std::string root;
     //validate URI
     std::string our_uri = request.uri().path();
-     if(our_uri[0] != '/' || our_uri[0] != 'h')
+     if(our_uri[0] != '/' && our_uri[0] != 'h')
     {
-        std::cerr << "Bad URL\n";
+        std::cerr << "Bad URL1: " << our_uri[0] << "\n";
         fillInBadResponse(&ourResponse);
         return ourResponse;
     }
     else if(our_uri.find("..") != std::string::npos)
     {
-        std::cerr << "Bad URL\n";
+        std::cerr << "Bad URL2:" << our_uri << "\n";
         fillInBadResponse(&ourResponse);
         return ourResponse;
     }
 
     //Virtual Host
+    std::cout << "host: " << request.uri().host() << "\n";
     if(virtualHosts.find(request.uri().host()) != virtualHosts.end())
     {
         root = virtualHosts[request.uri().host()];
     }
     else
     {
-        std::cerr << "Bad host\n";
-        fillInBadResponse(&ourResponse);
-        return ourResponse;
+        root = virtualHosts["root"]; //unspecified host leads to root virtual host being used
     }
 
     //Accept Header
-    if(request.headers().find("Accept") != request.headers().end())
+    if(!request.headers()["Accept"].empty()) //request.headers().find("Accept") != request.headers().end())
     {
         //parse accept, we only handle text/html, text/plain for now
         std::string values = request.headers()["Accept"];
@@ -118,7 +191,7 @@ HttpResponse GetHandler(const HttpRequest& request)
     }
 
     //User-Agent
-    if(request.headers().find("UserAgent") != request.headers().end())
+    if(!request.headers()["UserAgent"].empty())//request.headers().find("UserAgent") != request.headers().end())
     {
         //right now we only handle mobile user or not
         std::string user_agent = request.headers()["UserAgent"];
@@ -138,8 +211,8 @@ HttpResponse GetHandler(const HttpRequest& request)
         }
 
     }
-
-     if(request.headers().find("If-Modified-Since") != request.headers().end())
+    //broken rn
+    if(!request.headers()["If-Modified-Since"].empty())
     {
         //parsing the Http time/date format
         std::istringstream ss(request.headers()["If-Modified-Since"]);
@@ -148,7 +221,7 @@ HttpResponse GetHandler(const HttpRequest& request)
 
         ss >> std::get_time(&timeInfo, "%a, %d %b %Y %H:%M:%S GMT");
         if (ss.fail()) {
-            throw std::runtime_error("Failed to parse HTTP-formatted time.");
+            std::cerr << "Weird Thing happening w/ time\n";
         }
 
         std::time_t time = std::mktime(&timeInfo);
@@ -158,7 +231,7 @@ HttpResponse GetHandler(const HttpRequest& request)
         contentSelectionCriteria.ifModifiedSince = compareable_time;
 
     }
-     if(request.headers().find("Connection") != request.headers().end())
+     if(!request.headers()["Connection"].empty()) //request.headers().find("Connection") != request.headers().end())
     {
         std::vector<std::string> connectionAcceptedValues = {"close", "keep-alive"};
         if(request.headers()["Connection"].compare(connectionAcceptedValues[0]))
@@ -173,10 +246,11 @@ HttpResponse GetHandler(const HttpRequest& request)
         }
 
     }
-    if(request.headers().find("Authorization") != request.headers().end())
+    if(!request.headers()["Authorization"].empty())
     {
         //check that it is the basic form
         std::string authorization_string = request.headers()["Authorization"];
+        std::cout << "Auth: " << request.headers()["Authorization"] << "\n";
         if (authorization_string.substr(0, 6).compare("Basic ") != 0)
         {
             std::cerr << "Unsupported authentification\n";
@@ -203,16 +277,40 @@ HttpResponse GetHandler(const HttpRequest& request)
 
     //construct a filepath
     std::string filepath = root + our_uri;
-
+    std::cout << "filepath: " << filepath << "\n";
     //ensure the path is vald
     if(std::__fs::filesystem::exists(filepath)) 
     {
+        std::cout << "here1\n";
         //select what file to send back based on headers
-        contentSelection(request, &ourResponse, &contentSelectionCriteria, filepath);
+        //filepath = contentSelection(request, &ourResponse, &contentSelectionCriteria, filepath);
+        //fill in response message
+        //get the file contents into a buffer
+        std::string data;
+        std::string dataChunk;
+        std::ifstream fileData(filepath);
+        while (std::getline (fileData, dataChunk)) {
+            data  = data + dataChunk + "\n";
+        }
+        std::cout << data << "\n";
+        ourResponse.SetContent(data);
+        ourResponse.SetStatusCode(HttpStatusCode::Ok);
+        std::cout << filepath << "\n";
+        if(filepath.substr(filepath.length() - 5) == ".html")
+        {
+            std::cout << "html" << "\n";
+            ourResponse.SetHeader("Content-Type", "text/html");
+        }
+        else
+        {
+            ourResponse.SetHeader("Content-Type", "text/plain");
+        }
+        return ourResponse;
+       
     }
     else
     {
-        std::cerr << "Bad URL\n";
+        std::cerr << "Bad URL (filepath): " << filepath << "\n";
         fillInBadResponse(&ourResponse);
         return ourResponse;
     }
@@ -244,8 +342,14 @@ void RequestHandlers::RegisterGetHandlers(HttpServer& server) {
         return response;
     };
 
-    server.RegisterHttpRequestHandler("/", HttpMethod::GET, say_hello);
-    server.RegisterHttpRequestHandler("/hello.html", HttpMethod::GET, send_html);
+    auto getHandler = [](const HttpRequest& request) -> HttpResponse {
+        return GetHandler(request);
+
+    };
+
+    //server.RegisterHttpRequestHandler("/index.html", HttpMethod::GET, getHandler);
+    server.RegisterHttpRequestHandler(HttpMethod::GET, getHandler);
+    //server.RegisterHttpRequestHandler("/hello.html", HttpMethod::GET, send_html);
 }
 
 

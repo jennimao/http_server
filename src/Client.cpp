@@ -116,9 +116,10 @@ int main() {
     Client client(io_context, "localhost", "8080");
     
     // Create two threads for concurrent HTTP requests
-    for (int i = 0; i < 2000; i++) {
-        client.sendGetRequest("/");
-    }
+    //for (int i = 0; i < 2000; i++) {
+        //client.sendGetRequest("/index.html");
+    //}
+    client.sendGetRequest("/goodbyeWorld.html");
 
     return 0;
 }

@@ -60,6 +60,9 @@ class HttpServer {
         void RegisterHttpRequestHandler(const Uri& uri, HttpMethod method, const HttpRequestHandler_t callback) {
             request_handlers_[uri].insert(std::make_pair(method, std::move(callback)));
         }
+        void RegisterHttpRequestHandler(HttpMethod method, const HttpRequestHandler_t callback) {
+            request_handlers_test[method] = std::move(callback);
+        }
 
         std::string host() const { return host_; }
         std::uint16_t port() const { return port_; }
@@ -80,6 +83,7 @@ class HttpServer {
         int worker_kqueue_fd_[kThreadPoolSize];
         struct kevent worker_events[kMaxEvents];
         std::map<Uri, std::map<HttpMethod, HttpRequestHandler_t>> request_handlers_;
+        std::map<HttpMethod, HttpRequestHandler_t> request_handlers_test;
         std::mt19937 rng_;
         std::uniform_int_distribution<int> sleep_times_;
 

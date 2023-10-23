@@ -44,6 +44,9 @@ void ensure_enough_resource(int resource, std::uint32_t soft_limit, std::uint32_
 int main(void) {
   std::string host = "localhost";
   int port = 8080;
+
+  //parse config file and read in virtual hosts
+  
   HttpServer server(host, port);
   RequestHandlers::RegisterHandlers(server);
 
