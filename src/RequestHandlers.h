@@ -11,8 +11,8 @@ namespace simple_http_server {
 class RequestHandlers {
 public:
     static void RegisterHandlers(HttpServer& server);
-    static HttpResponse RegisterGetHandlers(const HttpServer& server);
-
+    static void RegisterGetHandlers(HttpServer& server);
+    static void RegisterPostHandlers(HttpServer& server);
 private: 
 
 };

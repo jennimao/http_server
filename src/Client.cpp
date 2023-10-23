@@ -113,9 +113,18 @@ private:
 
 int main() {
     boost::asio::io_context io_context;
-    //log("hello");
     Client client(io_context, "localhost", "8080");
-    client.sendGetRequest("/");
+    
+    // Create two threads for concurrent HTTP requests
+    for (int i = 0; i < 2000; i++) {
+        client.sendGetRequest("/");
+    }
 
     return 0;
 }
+
+
+
+
+
+

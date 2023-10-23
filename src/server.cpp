@@ -158,6 +158,7 @@ void HttpServer::Listen() {
                 client_data = new EventData();
                 client_data->fd = client_fd;
                 // distributes the client connection to a worker thread
+                log("distributing the client connection to a worker thread");
                 log(std::to_string(current_worker)); 
                 ControlKqueueEvent(worker_kqueue_fd_[current_worker], EV_ADD, client_fd, EVFILT_READ, client_data);
                 current_worker++;
@@ -196,6 +197,8 @@ void HttpServer::ProcessEvents(int worker_id) {
         active = true;
         // iterate through the retrieved events and handle them
         for (int i = 0; i < num_events; i++) {
+            log("processing event");
+            log(std::to_string(worker_id));
             const struct kevent &current_event = worker_events[i];
             data = reinterpret_cast<EventData *>(current_event.udata);
 
@@ -208,6 +211,7 @@ void HttpServer::ProcessEvents(int worker_id) {
                 HandleKqueueEvent(kq, data, EVFILT_WRITE);
             } 
             else {
+                log("unexpected event");
                 // handle unexpected by removing the event 
                 ControlKqueueEvent(kq, EV_DELETE, data->fd, current_event.filter);
                 close(data->fd);
@@ -235,11 +239,13 @@ void HttpServer::HandleKqueueEvent(int kq, EventData *data, int filter) {
             response = new EventData();
             response->fd = fd;
             HandleHttpData(*request, response);
+            log("control kqueue event once we have fully received the message");
             ControlKqueueEvent(kq, EV_ADD, fd, EVFILT_WRITE, response); // write response to client  
             delete request; 
         } 
         // client has closed connection
         else if (byte_count == 0) {  
+            log("client has closed connection");
             ControlKqueueEvent(kq, EV_DELETE, fd, EVFILT_READ, nullptr);
             close(fd);
             delete request; 
@@ -247,9 +253,11 @@ void HttpServer::HandleKqueueEvent(int kq, EventData *data, int filter) {
         else {
             if (errno == EAGAIN || errno == EWOULDBLOCK) {  // retry
                 request->fd = fd;
+                log("try again");
                 ControlKqueueEvent(kq, EV_ADD, fd, EVFILT_READ, request);
             } 
             else {  // other error
+                log("another error");
                 ControlKqueueEvent(kq, EV_DELETE, fd, EVFILT_READ, nullptr);
                 close(fd);
                 delete request;
@@ -337,6 +345,7 @@ HttpResponse HttpServer::HandleHttpRequest(const HttpRequest &request) {
 void HttpServer::ControlKqueueEvent(int kq, int op, int fd, std::uint32_t events, void *data) {
     struct kevent kev; 
     EV_SET(&kev, fd, events, EV_ADD, 0, 0, data);
+    log("control kqueue event");
 
     if (kevent(kq, &kev, 1, NULL, 0, NULL) == -1) {
         if (op == EV_DELETE && errno == ENOENT) {

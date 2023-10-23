@@ -45,9 +45,10 @@ int main(void) {
   std::string host = "localhost";
   int port = 8080;
   HttpServer server(host, port);
+  RequestHandlers::RegisterHandlers(server);
 
   // Register a few endpoints for demo and benchmarking
-  auto say_hello = [](const HttpRequest& request) -> HttpResponse {
+  /*auto say_hello = [](const HttpRequest& request) -> HttpResponse {
     HttpResponse response(HttpStatusCode::Ok);
     response.SetHeader("Content-Type", "text/plain");
     response.SetContent("Hello, world\n");
@@ -67,14 +68,13 @@ int main(void) {
     response.SetContent(content);
     
     return response;
-  };
+  };*/
 
   //server.RegisterHttpRequestHandler("/", HttpMethod::HEAD, say_hello);
   //server.RegisterHttpRequestHandler("/", HttpMethod::GET, say_hello);
   //server.RegisterHttpRequestHandler("/hello.html", HttpMethod::HEAD, send_html);
   //server.RegisterHttpRequestHandler("/hello.html", HttpMethod::GET, send_html);
 
-  RequestHandlers::RegisterHandlers(server);
 
   try {
     // std::cout << "Setting new limits for file descriptor count.." <<
