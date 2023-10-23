@@ -263,6 +263,7 @@ void RequestHandlers::RegisterPostHandlers(HttpServer& server) {
 
         // Get the path to the CGI script for the requested URI
         //std::string cgiScriptPath = request.uri().path();
+        // TOOD: need to replace this with the request path -- have to start at root
         std::string cgiScriptPath = "../cgi-bin/script_cgi.pl";
 
         // Execute the CGI script and capture its output
