@@ -38,16 +38,18 @@ struct ContentSelection {
 
 void fillInBadResponse(HttpResponse* response)
 {
-    return;
+    return; 
 }
 
-namespace fs = std::filesystem;
+namespace fs = std::__fs::filesystem;
+
 
 bool isExecutable(const std::string& filePath) {
     try {
-        // Use std::filesystem to check file permissions
+        // Use std::filesystem to check if the file exists and is executable
         fs::path path(filePath);
-        return fs::status(path).permissions() & fs::perms::owner_exec;
+        return fs::exists(path) && fs::is_regular_file(path) && (fs::status(path).permissions() & fs::perms::owner_exec) == fs::perms::owner_exec;
+
     } catch (const std::exception& ex) {
         std::cerr << "Error checking file permissions: " << ex.what() << std::endl;
         return false;
@@ -359,8 +361,6 @@ void RequestHandlers::RegisterGetHandlers(HttpServer& server) {
 
 
 void RequestHandlers::RegisterPostHandlers(HttpServer& server) {
-
-    // 
     auto run_cgi = [] (const HttpRequest& request) -> HttpResponse {
         std::string postData = request.content(); // POST data as stdin for the CGI
 
@@ -369,6 +369,23 @@ void RequestHandlers::RegisterPostHandlers(HttpServer& server) {
         setenv("CONTENT_TYPE", "application/x-www-form-urlencoded", 1);
         setenv("CONTENT_LENGTH", std::to_string(postData.size()).c_str(), 1);
 
+        std::string root;
+        //validate URI
+        std::string our_uri = request.uri().path();
+
+        // configure virtual host 
+        if(virtualHosts.find(request.uri().host()) != virtualHosts.end())
+        {
+            root = virtualHosts[request.uri().host()];
+        }
+        else
+        {
+            root = virtualHosts["root"]; //unspecified host leads to root virtual host being used
+        }
+        // need to fix this because the root and cgi bin don't match up right now 
+        std::string filepath = root + our_uri;
+        std::cout << "filepath: " << filepath << "\n";
+
 
         // Get the path to the CGI script for the requested URI
         //std::string cgiScriptPath = request.uri().path();
@@ -376,8 +393,10 @@ void RequestHandlers::RegisterPostHandlers(HttpServer& server) {
         std::string cgiScriptPath = "../cgi-bin/script_cgi.pl";
 
         // TODO: check if the cgiScriptPath is in the list of existing resources
-        // do I also create the list of existing resources in this file? or is that 
-        // up to a file system survey
+        if(!std::__fs::filesystem::exists(filepath)) {
+            // error 
+            return HttpResponse(HttpStatusCode::InternalServerError);
+        }
 
         // check if mapped file is executable 
         if (isExecutable(cgiScriptPath)) {
@@ -413,13 +432,13 @@ void RequestHandlers::RegisterPostHandlers(HttpServer& server) {
             HttpResponse response(HttpStatusCode::Ok);
             response.SetHeader("Content-Type", "text/plain"); // Set appropriate content type
             response.SetContent(cgiOutput);
+            return response;
         }
         else {
             // error handling if the mapped file is not executable 
             return HttpResponse(HttpStatusCode::InternalServerError);
         }
 
-        return response;
     };
     
     server.RegisterHttpRequestHandler(HttpMethod::POST, run_cgi);
