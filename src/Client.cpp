@@ -121,7 +121,7 @@ int main() {
     for (int i = 0; i < 10; i++) {
         client.sendGetRequest("/");
     }
-    client.sendGetRequest("/goodbyeWorld_m.html");
+    // client.sendGetRequest("/goodbyeWorld_m.html");
 
     return 0;
 }

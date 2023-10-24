@@ -22,7 +22,6 @@
 using namespace boost;
 
 
-
 namespace simple_http_server {
 std::unordered_map<std::string, std::string> virtualHosts; 
 std::string const acceptedFormats[] = {"text/html", "text/plain"};
@@ -56,6 +55,30 @@ bool isExecutable(const std::string& filePath) {
     } catch (const std::exception& ex) {
         std::cerr << "Error checking file permissions: " << ex.what() << std::endl;
         return false;
+    }
+}
+
+HttpResponse runExecutable(const std::string& filePath) {
+    std::string command = filePath;
+    std::string cgiOutput;
+
+    // Execute the CGI script and capture its output
+    FILE* cgiProcess = popen(command.c_str(), "r");
+    if (cgiProcess) {
+        char buffer[1024];
+        while (fgets(buffer, sizeof(buffer), cgiProcess) != nullptr) {
+            cgiOutput += buffer;
+        }
+        pclose(cgiProcess);
+
+        // Return the CGI script's output as an HTTP response
+        HttpResponse response(HttpStatusCode::Ok);
+        response.SetContent(cgiOutput);
+        response.SetHeader("Content-Type", "text/plain"); // Modify content type as needed
+        return response;
+    } else {
+        // Handle error if the CGI script couldn't be executed
+        return HttpResponse(HttpStatusCode::InternalServerError);
     }
 }
 
@@ -500,9 +523,15 @@ HttpResponse RequestHandlers::GetHandler(const HttpRequest& request)
         }
 
 
-
         //select what file to send back based on headers
         filepath = contentSelection(request, &ourResponse, &contentSelectionCriteria, filepath);
+        std::cerr << filepath << "\n";
+        // check if file is CGI and executable 
+        if (isExecutable(filepath)) {
+            std::cerr << "it's executable " << filepath << "\n";
+            return runExecutable(filepath);
+        }
+
         //fill in response message
         //get the file contents into a buffer
         std::string data;
@@ -611,10 +640,10 @@ void RequestHandlers::RegisterPostHandlers(HttpServer& server) {
         }
 
         // check if mapped file is executable 
-        if (isExecutable(cgiScriptPath)) {
+        if (isExecutable(filepath)) {
             
             // execute the CGI script and capture its output
-            std::string command = cgiScriptPath;
+            std::string command = filepath;
 
             // use popen to execute the CGI script and read its output
             FILE* cgiProcess = popen(command.c_str(), "w");
@@ -654,7 +683,6 @@ void RequestHandlers::RegisterPostHandlers(HttpServer& server) {
     };
     
     server.RegisterHttpRequestHandler(HttpMethod::POST, run_cgi);
-    //server.RegisterHttpRequestHandler("/hello.html", HttpMethod::GET, send_html);
 }
 
 void RequestHandlers::RegisterHandlers(HttpServer& server) {
@@ -665,61 +693,6 @@ void RequestHandlers::RegisterHandlers(HttpServer& server) {
     // Register all 50 request handlers here
 }
 
-void RequestHandlers::ParseConfigFile(std::string configfile, int* port, int* selectLoops)
-{
-  std::cout << "hello\n";
-  std::string dataChunk;
-  std::ifstream fileData(configfile);
-  std::string DocumentRoot;
-  std::string ServerName;
-  while (std::getline (fileData, dataChunk)) { //parsing based on example config in spec, only supports listeing on one port
-          std::cout << "DataChunk: " << dataChunk << "\n";
-          if (dataChunk.find("Listen") != std::string::npos)
-          {
-            *port = std::stoi(dataChunk.substr(7, dataChunk.length()));
-          }
-
-          else if (dataChunk.find("nSelectLoops") != std::string::npos)
-          {
-            *selectLoops = std::stoi(dataChunk.substr(13, dataChunk.length()));
-            std::cout << "chunk: " << dataChunk.substr(13, dataChunk.length()) << "\n";
-          }
-
-          else if (dataChunk.find("<VirtualHost") != std::string::npos){
-            while (std::getline (fileData, dataChunk)) {
-              if(dataChunk.find("DocumentRoot") != std::string::npos)
-              {
-                DocumentRoot = dataChunk.substr(dataChunk.find("DocumentRoot ") + 14), dataChunk.length();
-              }
-              
-              else if(dataChunk.find("ServerName") != std::string::npos)
-              {
-                ServerName = dataChunk.substr(dataChunk.find("ServerName ") + 11, dataChunk.length());
-              }
-              
-              else if(dataChunk.find("</VirtualHost>") != std::string::npos){
-                virtualHosts[ServerName] = DocumentRoot;
-                if(virtualHosts.size() == 1)
-                {
-                  virtualHosts["root"] = DocumentRoot;
-                }
-                break;
-              }
-          }
-
-        }
-
-  }
-  std::cout << "end\n";
-}
-
-void RequestHandlers::PrintVirtualHosts(void)
-{
-    // Iterate over the elements and print them
-    for (const auto& pair : virtualHosts) {
-        std::cout << "Key: " << pair.first << ", Value: " << pair.second << std::endl;
-    }
-}
 
 void RequestHandlers::ParseConfigFile(std::string configfile, int* port, int* selectLoops)
 {

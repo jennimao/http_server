@@ -26,8 +26,6 @@ void log(const std::string& message) {
 
 namespace simple_http_server {
 
-std::atomic<int> queuedRequests(0);
-
 
 HttpServer::HttpServer(const std::string &host, std::uint16_t port)
     : host_(host),
@@ -145,8 +143,7 @@ void HttpServer::WorkerThread(int workerID, int listeningSocket) {
             continue;
         }
 
-        log("worker " + std::to_string(workerID) + " is running");
-
+        //log("worker " + std::to_string(workerID) + " is running");
 
         // iterate through the retrieved events and handle them 
         for (int i = 0; i < numEvents; ++i) {
