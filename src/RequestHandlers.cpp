@@ -16,18 +16,21 @@
 #include <boost/archive/iterators/binary_from_base64.hpp>
 #include <boost/archive/iterators/transform_width.hpp>
 #include <boost/archive/iterators/insert_linebreaks.hpp>
+#include <boost/algorithm/string.hpp>
 #include <filesystem>
 
 using namespace boost;
 
-namespace simple_http_server {
 
-std::unordered_map<std::string, std::string> virtualHosts;
+
+namespace simple_http_server {
+std::unordered_map<std::string, std::string> virtualHosts; 
 std::string const acceptedFormats[] = {"text/html", "text/plain"};
+std::string const acceptedFormatsEndings[] = {".html", ".txt"};
 size_t const lengthAcceptedFormats = 2;
 struct ContentSelection {
     int formatArray[lengthAcceptedFormats];
-    int userAgent; //1 is mobile 0 is computer
+    int userAgent = -1; //1 is mobile 0 is computer
     std::chrono::system_clock::time_point ifModifiedSince;
     int connection; //0 is close, 1 is keep-alive 
     std::string username;
@@ -56,23 +59,128 @@ bool isExecutable(const std::string& filePath) {
     }
 }
 
+//this method assumes the .htaccess file is perfectly formatted
+int parseAuthFile(std::string dirToCheck, ContentSelection* contentCriteria) //parsing based on spec format
+{
+    //format of file:
+    /*
+        AuthType Basic
+        AuthName "Restricted Files"
+        User base64-encoded-user-name
+        Password base64-encoded-password
+    */
+    std::string dataChunk; 
+    std::string pass;
+    std::string user;
+    std::ifstream fileData(dirToCheck + "/.htaccess");
+    while (std::getline (fileData, dataChunk)) {
+        std::cout << "datachunk: " << dataChunk << "\n";
+        if(dataChunk.find("User") != std::string::npos){
+            user = dataChunk.substr(5, dataChunk.length() - 5 - 1);
+        }
+        else if(dataChunk.find("Password") != std::string::npos)
+        {
+            pass = dataChunk.substr(9, dataChunk.length() - 9 - 1);
+        }
+    }
+
+    std::cout << "user " << user << "\n";
+    std::cout << "pass " << pass << "\n";
+
+    //decoding
+    typedef boost::archive::iterators::transform_width<
+    boost::archive::iterators::binary_from_base64<std::string::const_iterator>, 8, 6
+    > base64_decode_iterator;
+
+    base64_decode_iterator begin(user.begin());
+    base64_decode_iterator end(user.end());
+    std::string userDecoded(begin, end);
+
+    std::cout << "User decoded:" << userDecoded << "\n";
+
+    base64_decode_iterator passBegin(pass.begin());
+    base64_decode_iterator passEnd(pass.end());
+    std::string passDecoded(passBegin, passEnd);
+
+    std::cout << "Pass decoded:" << passDecoded << "\n";
+    
+    std::cout << "Content pass decoded:" << contentCriteria->password << "\n";
+    std::cout << "Content user decoded:" << contentCriteria->username << "\n";
+
+    for(int i; i < passDecoded.length(); i++)
+    {
+        if (passDecoded[i] != contentCriteria->password[i])
+        {
+            std::cout << "not equal at " << i << " passdecoded " << int(passDecoded[i]) << " contentCriteria->password " << int(contentCriteria->password[i]) << "\n";
+        }
+    }
+    if(contentCriteria->password == passDecoded && contentCriteria->username == userDecoded)
+    {
+        return 0;
+    }
+    else
+    {
+        return -1;
+    }
+
+}
+
+int authorizationCheck(ContentSelection* contentCriteria, std::string filepath)
+{
+    std::string dirToCheck;
+    bool authRequired = false;
+    if(std::__fs::filesystem::is_directory(filepath))
+    {
+        dirToCheck = filepath;
+    }
+    else
+    {
+        std::__fs::filesystem::path myFilePath(filepath);
+        dirToCheck = myFilePath.parent_path().c_str();
+    }
+
+    for (const auto& entry : std::__fs::filesystem::directory_iterator(dirToCheck)) 
+    {
+        if (entry.path().filename().compare(".htaccess") == 0)
+        {
+            authRequired = true;
+        }
+    }
+
+    if(!authRequired)
+    {
+        return 0;
+    }
+
+    return parseAuthFile(dirToCheck, contentCriteria);
+
+}
+
 //returns the filepath of the resource to return
 std::string contentSelection(const HttpRequest& request, HttpResponse* response, ContentSelection* contentCriteria, std::string filepath) {
     
     std::string indexPath;
     std::string mIndexPath;
-    std::string toReturn;
+    std::string toReturn = filepath;
+    std::__fs::filesystem::path myFileObj(filepath);
+    //first check authorization
+    int ret = authorizationCheck(contentCriteria, filepath);
+    if(ret != 0)
+    {
+        return "Unauthorized";
+    }
+
     //if the path does not end in a file
     if(std::__fs::filesystem::is_directory(filepath))
     {
         //checking for index_m.html and index.html
         for (const auto& entry : std::__fs::filesystem::directory_iterator(filepath)) 
         {
-            if (entry.is_regular_file() && entry.path().filename() == "index_m.html") 
+            if (entry.is_regular_file() && entry.path().filename().compare("index_m.html") == 0) 
             {
                 mIndexPath = filepath + "/index_m.html";
             }
-            if (entry.is_regular_file() && entry.path().filename() == "index.html") 
+            if (entry.is_regular_file() && entry.path().filename().compare("index.html") == 0) 
             {
                 indexPath = filepath + "/index.html";
             }
@@ -87,7 +195,7 @@ std::string contentSelection(const HttpRequest& request, HttpResponse* response,
             }
 
         }
-        else if (!indexPath.empty())
+        else if (!indexPath.empty()) //either non-mobile or don't know
         {
             toReturn = indexPath;
         }
@@ -98,44 +206,124 @@ std::string contentSelection(const HttpRequest& request, HttpResponse* response,
 
     }
 
-    //check accept
+    //check accept (assuming static file here)
+    //if the 
+
+    /* for(int i; i < sizeof(contentCriteria->formatArray)/sizeof(int); i++)
+    {
+        if(contentCriteria->formatArray[i] == 1 && filepath.find(acceptedFormatsEndings[i]) != std::string::npos)
+        {
+
+            break;
+        }
+    } */
     //if the filepath exists, and the suffix is one of the data types the user supports, put it as the to return
     //if not, search for files in the dir that have that name with one of the supported suffixes 
     //if that fails return not found
 
     //check user agent
-    //if it is not mobile, and requested something with a _m, give it the normal file
-    //if it is mobile, check if the requested file has _m. in the name, if it does, do nothing
-        //if it doesn't, search for files with the requested file name _m with one of the accepted suffixes
-            //if not found return not found response
+    std::cout << "userAgent " << contentCriteria->userAgent << "\n";
+    std::__fs::filesystem::path myNewFileObj(toReturn);
+    if(contentCriteria->userAgent != -1)
+    {
+        if(contentCriteria->userAgent == 1) //mobile
+        {
+            std::cout << "he's a mobile boi\n";
+            if(myNewFileObj.filename().string().find("_m") == std::string::npos) //if they requested a non-mobile file
+            {
+                //look for a mobile version
+                //constructing new name:
+                std::string newName;
+                size_t hasSuffix = myFileObj.filename().string().find('.');
+                if(hasSuffix == std::string::npos)
+                {
+                    newName = myNewFileObj.filename().string() + "_m";
+                }
+                else
+                {
+                    newName = myNewFileObj.filename().string().substr(0, hasSuffix) + "_m" + myNewFileObj.filename().string().substr(hasSuffix, myFileObj.filename().string().length());
+                }
+                std::cout << "filename : " << myNewFileObj.filename() << "\n";
+                std::cout << "newName: " << newName << "\n";
+
+                boost::to_lower(newName);
+
+                for (const auto& entry : std::__fs::filesystem::directory_iterator(myFileObj.parent_path())) 
+                {
+                    std::cout << "files " << entry.path().filename() << "\n";
+                    std::string currentFile = entry.path().filename();
+                    boost:to_lower(currentFile);
+
+                    if (entry.is_regular_file() && currentFile.compare(newName) == 0) 
+                    {
+                        std::cout << "sucess!";
+                        toReturn = myFileObj.remove_filename().string() + "/" + newName;
+                    }
+
+                }
+
+            }
+        }
+        else
+        {
+            size_t filenameLen = myNewFileObj.filename().string().length();
+            if(myNewFileObj.filename().string().find("_m.") != std::string::npos || (myNewFileObj.filename().string()[filenameLen - 1] == 'm' && myNewFileObj.filename().string()[filenameLen - 2] == '_')) //if they requested a non-mobile file
+            {
+                //look for a non - mobile version
+                //constructing new name:
+                std::string newName;
+                size_t hasSuffix = myNewFileObj.filename().string().find('.');
+                if(hasSuffix == std::string::npos)
+                {
+                    newName = myNewFileObj.filename().string().substr(0, filenameLen - 2);
+                }
+                else
+                {
+                    newName = myNewFileObj.filename().string().substr(0, hasSuffix - 2) + myNewFileObj.filename().string().substr(hasSuffix, myFileObj.filename().string().length());
+                }
+
+                boost::to_lower(newName);
+              
+                for (const auto& entry : std::__fs::filesystem::directory_iterator(myFileObj.parent_path())) 
+                {
+                    std::string currentFile = entry.path().filename();
+                    boost::to_lower(currentFile);
+                    if (entry.is_regular_file() && currentFile.compare(newName) == 0) 
+                    {
+                        toReturn = myFileObj.remove_filename().string() + "/" + newName;
+                    }
+
+                }
+
+            }
+        }
+    }
+
+    if(!request.headers()["If-Modified-Since"].empty()) //if there's an if modified since header, it's been parsed
+    {
+        // Use std::filesystem::last_write_time to get a std::filesystem::file_time_type
+        std::__fs::filesystem::file_time_type fileTime = std::__fs::filesystem::last_write_time(toReturn);
+        
+        if(fileTime.time_since_epoch() < contentCriteria->ifModifiedSince.time_since_epoch())
+        {
+            return "Not modified";
+        }
+    } 
+
+    return toReturn;
 
     //check ifmodifiedsince 
     //if has been modified, continue
     //if not been modified, return 304 not modified
 
-    //authorization
-    //if hacess file exists in dir
-        //de-encode the username password associated with it and compare to content selection array values
-        //if it fails
-            //return 401 unauthorized
-        //if it is good
-            //return filepath, all done
-    //if doesn't exist
-        //return filepath, all done
-
-
-
-
-
 }
-
 
 
 HttpResponse RequestHandlers::GetHandler(const HttpRequest& request) 
 {
     std::cout << "hello!!!\n";
     //for testing, need to implement virtualHosts
-    //virtualHosts.insert({"root", "/Users/samdetor/http_server/src"});
+    ////virtualHosts.insert({"root", "/Users/samdetor/http_server/src"});
     virtualHosts.insert({"root", "/Users/jennymao/Documents/repos/http_server/src"});
     HttpResponse ourResponse;
     ContentSelection contentSelectionCriteria;
@@ -157,10 +345,10 @@ HttpResponse RequestHandlers::GetHandler(const HttpRequest& request)
 
     //Virtual Host
     std::cout << "host: " << request.uri().host() << "\n";
-    if(virtualHosts.find(request.uri().host()) != virtualHosts.end())
+    if(virtualHosts.find(request.headers()["Host"]) != virtualHosts.end())
     {
-        root = virtualHosts[request.uri().host()];
-    }
+        root = virtualHosts[request.headers()["Host"]];
+    } 
     else
     {
         root = virtualHosts["root"]; //unspecified host leads to root virtual host being used
@@ -198,10 +386,11 @@ HttpResponse RequestHandlers::GetHandler(const HttpRequest& request)
     }
 
     //User-Agent
-    if(!request.headers()["UserAgent"].empty())//request.headers().find("UserAgent") != request.headers().end())
+    if(!request.headers()["User-Agent"].empty())//request.headers().find("UserAgent") != request.headers().end())
     {
         //right now we only handle mobile user or not
-        std::string user_agent = request.headers()["UserAgent"];
+        std::string user_agent = request.headers()["User-Agent"];
+        std::cout << "user_agent str: " << user_agent << "\n";
         if(user_agent.find("Mobile") != std::string::npos || 
            user_agent.find("Andriod") != std::string::npos || 
            user_agent.find("iOS") != std::string::npos || 
@@ -258,28 +447,33 @@ HttpResponse RequestHandlers::GetHandler(const HttpRequest& request)
         //check that it is the basic form
         std::string authorization_string = request.headers()["Authorization"];
         std::cout << "Auth: " << request.headers()["Authorization"] << "\n";
-        if (authorization_string.substr(0, 6).compare("Basic ") != 0)
+        if (authorization_string.substr(0, 5).compare("Basic") != 0)
         {
             std::cerr << "Unsupported authentification\n";
         }
-        std::string userPass = authorization_string.substr(6, authorization_string.length());
-        
-        // Decoding the username::password
-        typedef boost::archive::iterators::transform_width<
-        boost::archive::iterators::binary_from_base64<std::string::const_iterator>, 8, 6
-        > base64_decode_iterator;
+        else
+        {
+            std::string userPass = authorization_string.substr(5, authorization_string.length() - 5 - 1);
+            std::cout << "UserPass " << userPass << "\n";
+            
+            // Decoding the username::password
+            typedef boost::archive::iterators::transform_width<
+            boost::archive::iterators::binary_from_base64<std::string::const_iterator>, 8, 6
+            > base64_decode_iterator;
 
-        base64_decode_iterator begin(userPass.begin());
-        base64_decode_iterator end(userPass.end());
+            base64_decode_iterator begin(userPass.begin());
+            base64_decode_iterator end(userPass.end());
 
-        std::string decoded(begin, end);
-        size_t locationOfColon = decoded.find(":");
-        std::string username = decoded.substr(0,locationOfColon);
-        std::string password = decoded.substr(locationOfColon + 1, decoded.length());
+            std::string decoded(begin, end);
+            std::cout << "decoded " << decoded << "\n";
+            size_t locationOfColon = decoded.find(":");
+            std::string username = decoded.substr(0,locationOfColon);
+            std::string password = decoded.substr(locationOfColon + 1, decoded.length());
 
-        //add the two decoded values to the content generation method 
-        contentSelectionCriteria.username = username;
-        contentSelectionCriteria.password = password;
+            //add the two decoded values to the content generation method 
+            contentSelectionCriteria.username = username;
+            contentSelectionCriteria.password = password;
+        }
     }
 
     //construct a filepath
@@ -308,7 +502,7 @@ HttpResponse RequestHandlers::GetHandler(const HttpRequest& request)
 
 
         //select what file to send back based on headers
-        //filepath = contentSelection(request, &ourResponse, &contentSelectionCriteria, filepath);
+        filepath = contentSelection(request, &ourResponse, &contentSelectionCriteria, filepath);
         //fill in response message
         //get the file contents into a buffer
         std::string data;
@@ -469,6 +663,118 @@ void RequestHandlers::RegisterHandlers(HttpServer& server) {
     RegisterGetHandlers(server);
     RegisterPostHandlers(server);
     // Register all 50 request handlers here
+}
+
+void RequestHandlers::ParseConfigFile(std::string configfile, int* port, int* selectLoops)
+{
+  std::cout << "hello\n";
+  std::string dataChunk;
+  std::ifstream fileData(configfile);
+  std::string DocumentRoot;
+  std::string ServerName;
+  while (std::getline (fileData, dataChunk)) { //parsing based on example config in spec, only supports listeing on one port
+          std::cout << "DataChunk: " << dataChunk << "\n";
+          if (dataChunk.find("Listen") != std::string::npos)
+          {
+            *port = std::stoi(dataChunk.substr(7, dataChunk.length()));
+          }
+
+          else if (dataChunk.find("nSelectLoops") != std::string::npos)
+          {
+            *selectLoops = std::stoi(dataChunk.substr(13, dataChunk.length()));
+            std::cout << "chunk: " << dataChunk.substr(13, dataChunk.length()) << "\n";
+          }
+
+          else if (dataChunk.find("<VirtualHost") != std::string::npos){
+            while (std::getline (fileData, dataChunk)) {
+              if(dataChunk.find("DocumentRoot") != std::string::npos)
+              {
+                DocumentRoot = dataChunk.substr(dataChunk.find("DocumentRoot ") + 14), dataChunk.length();
+              }
+              
+              else if(dataChunk.find("ServerName") != std::string::npos)
+              {
+                ServerName = dataChunk.substr(dataChunk.find("ServerName ") + 11, dataChunk.length());
+              }
+              
+              else if(dataChunk.find("</VirtualHost>") != std::string::npos){
+                virtualHosts[ServerName] = DocumentRoot;
+                if(virtualHosts.size() == 1)
+                {
+                  virtualHosts["root"] = DocumentRoot;
+                }
+                break;
+              }
+          }
+
+        }
+
+  }
+  std::cout << "end\n";
+}
+
+void RequestHandlers::PrintVirtualHosts(void)
+{
+    // Iterate over the elements and print them
+    for (const auto& pair : virtualHosts) {
+        std::cout << "Key: " << pair.first << ", Value: " << pair.second << std::endl;
+    }
+}
+
+void RequestHandlers::ParseConfigFile(std::string configfile, int* port, int* selectLoops)
+{
+  std::cout << "hello\n";
+  std::string dataChunk;
+  std::ifstream fileData(configfile);
+  std::string DocumentRoot;
+  std::string ServerName;
+  while (std::getline (fileData, dataChunk)) { //parsing based on example config in spec, only supports listeing on one port
+          std::cout << "DataChunk: " << dataChunk << "\n";
+          if (dataChunk.find("Listen") != std::string::npos)
+          {
+            *port = std::stoi(dataChunk.substr(7, dataChunk.length()));
+          }
+
+          else if (dataChunk.find("nSelectLoops") != std::string::npos)
+          {
+            *selectLoops = std::stoi(dataChunk.substr(13, dataChunk.length()));
+            std::cout << "chunk: " << dataChunk.substr(13, dataChunk.length()) << "\n";
+          }
+
+          else if (dataChunk.find("<VirtualHost") != std::string::npos){
+            while (std::getline (fileData, dataChunk)) {
+              if(dataChunk.find("DocumentRoot") != std::string::npos)
+              {
+                DocumentRoot = dataChunk.substr(dataChunk.find("DocumentRoot ") + 14), dataChunk.length();
+              }
+              
+              else if(dataChunk.find("ServerName") != std::string::npos)
+              {
+                ServerName = dataChunk.substr(dataChunk.find("ServerName ") + 11, dataChunk.length());
+              }
+              
+              else if(dataChunk.find("</VirtualHost>") != std::string::npos){
+                virtualHosts[ServerName] = DocumentRoot;
+                if(virtualHosts.size() == 1)
+                {
+                  virtualHosts["root"] = DocumentRoot;
+                }
+                break;
+              }
+          }
+
+        }
+
+  }
+  std::cout << "end\n";
+}
+
+void RequestHandlers::PrintVirtualHosts(void)
+{
+    // Iterate over the elements and print them
+    for (const auto& pair : virtualHosts) {
+        std::cout << "Key: " << pair.first << ", Value: " << pair.second << std::endl;
+    }
 }
 
 }

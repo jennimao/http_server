@@ -8,13 +8,16 @@
 
 namespace simple_http_server {
 
-class RequestHandlers {
+class RequestHandlers { 
 public:
     static void RegisterHandlers(HttpServer& server);
     static HttpResponse GetHandler(const HttpRequest& request);
     static void RegisterGetHandlers(HttpServer& server);
     static void RegisterPostHandlers(HttpServer& server);
-private: 
+    static void ParseConfigFile(std::string configfile, int* port, int* selectLoops);
+    static void PrintVirtualHosts(void);
+private:
+    
 
 };
 
