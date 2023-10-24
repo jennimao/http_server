@@ -60,7 +60,10 @@ private:
     void sendRequest(const std::string& method, const std::string& path) {
         std::string request =
             method + " " + path + " HTTP/1.1\r\n" +
-            "Host: " + server_host_ + "\r\n" +
+            "Host: " + "mobile.cicada.cs.yale.edu" + "\r\n" +
+            "User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.0 Safari/605.1.15" + "\r\n" +
+            "Authorization: Basic aGVsbG86d29ybGQ=" + "\r\n" +
+            "If-Modified-Since: Mon, 23 Oct 2023 20:23:00 GMT" + "\r\n" +
             "Connection: close\r\n\r\n";
         std::size_t bytes_transferred = boost::asio::write(socket_, boost::asio::buffer(request));
 
@@ -118,7 +121,7 @@ int main() {
     for (int i = 0; i < 2000; i++) {
         client.sendGetRequest("/index.html");
     }
-    client.sendGetRequest("/goodbyeWorld.html");
+    client.sendGetRequest("/goodbyeWorld_m.html");
 
     return 0;
 }

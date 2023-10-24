@@ -8,6 +8,10 @@
 #include <stdexcept>
 #include <string>
 #include <thread>
+#include <iostream>
+#include <sstream>
+#include <filesystem>
+#include <fstream>
 
 #include "Message.h"
 #include "Server.h"
@@ -41,11 +45,36 @@ void ensure_enough_resource(int resource, std::uint32_t soft_limit, std::uint32_
   }
 }
 
-int main(void) {
+int main(int argc, char* argv[]) {
   std::string host = "localhost";
   int port = 8080;
+  int nselectLoops;
+  std::string configFileName;
+  
+  //parse command line args
+  if(argc < 3) {
+    std::cerr << "Usage: " << argv[0] << " -config <config_file_name>" << std::endl;
+    return 1;
+    }
 
-  //parse config file and read in virtual hosts
+  std::string arg1 = argv[1];
+  std::string arg2 = argv[2];
+
+  if (arg1 == "-config") {
+    configFileName = arg2;
+    std::cout << "Config file name: " << configFileName << std::endl;
+  } 
+  else {
+      std::cerr << "Invalid command line arguments." << std::endl;
+      return 1;
+    }
+
+  RequestHandlers::ParseConfigFile(configFileName, &port, &nselectLoops);
+
+  //test print everything
+  std::cout << "port" << port << "\n";
+  std::cout << "nSelectLoops" << nselectLoops << "\n";
+  RequestHandlers::PrintVirtualHosts();
   
   HttpServer server(host, port);
   RequestHandlers::RegisterHandlers(server);
