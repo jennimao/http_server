@@ -97,6 +97,7 @@
         "coroutine": "cpp",
         "future": "cpp",
         "typeindex": "cpp",
-        "shared_mutex": "cpp"
+        "shared_mutex": "cpp",
+        "regex": "cpp"
     }
 }

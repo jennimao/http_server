@@ -1,133 +1,74 @@
 #include <iostream>
 #include <string>
-#include <boost/asio.hpp>
+#include <cstring>
+#include <arpa/inet.h>
+#include <netinet/in.h>
+#include <sys/socket.h>
+#include <unistd.h>
 
-using boost::asio::ip::tcp;
+// Include necessary headers for networking
+#include <unistd.h>
 
-void log(const std::string& message) {
-    std::cout << message << std::endl;
-}
-
-class Client {
+class HTTPClient {
 public:
-    Client(boost::asio::io_context& io_context, const std::string& host, const std::string& port)
-        : io_context_(io_context), resolver_(io_context), socket_(io_context) {
-        server_host_ = host;
-        server_port_ = port;
-    }
+    HTTPClient() {}
 
-    void sendGetRequest(const std::string& path) {
-        tcp::resolver::results_type endpoints = resolveHost();
+    void sendGetRequest(int sockfd, const std::string& path) {
+        // Create an HTTP GET request
+        std::string request = "GET " + path + " HTTP/1.1\r\n";
+        request += "Host: localhost\r\n"; // Replace with your server's host
+        request += "User-Agent: CustomHTTPClient/1.0\r\n";
+        request += "Connection: close\r\n\r\n";
 
-        if (endpoints.empty()) {
-            std::cerr << "No endpoints found." << std::endl;
-            return;
+        // Send the request to the server
+        if (sendRequest(sockfd, request)) {
+            std::string response = receiveResponse(sockfd);
+            std::cout << "Received Response:\n" << response << std::endl;
+        } else {
+            std::cerr << "Failed to send the request or receive a response." << std::endl;
         }
-
-        std::cout << "Resolved endpoints:" << std::endl;
-        for (const auto& endpoint : endpoints) {
-            std::cout << endpoint.endpoint().address().to_string() << ":" << endpoint.endpoint().port() << std::endl;
-        }
-
-        connectToServer(endpoints);
-        sendRequest("GET", path);
-        readResponse();
     }
 
 private:
-    boost::asio::io_context& io_context_;
-    tcp::resolver resolver_;
-    tcp::socket socket_;
-    std::string server_host_;
-    std::string server_port_;
-
-    tcp::resolver::results_type resolveHost() {
-        return resolver_.resolve(server_host_, server_port_);
+    bool sendRequest(int sockfd, const std::string& request) {
+        return write(sockfd, request.c_str(), request.length()) != -1;
     }
 
-    void connectToServer(tcp::resolver::results_type endpoints) {
-        boost::system::error_code ec;
-        boost::asio::connect(socket_, endpoints, ec);
+    std::string receiveResponse(int sockfd) {
+        std::string response;
+        char buffer[1024];
+        int bytes_received;
 
-        if (ec) {
-            std::cerr << "Failed to connect to the server: " << ec.message() << std::endl;
-            // Handle the connection error here, if needed
-        } else {
-            std::cout << "Connected to the server" << std::endl;
+        while ((bytes_received = read(sockfd, buffer, sizeof(buffer))) > 0) {
+            response.append(buffer, bytes_received);
         }
+
+        return response;
     }
-
-    void sendRequest(const std::string& method, const std::string& path) {
-        std::string request =
-            method + " " + path + " HTTP/1.1\r\n" +
-            "Host: " + "mobile.cicada.cs.yale.edu" + "\r\n" +
-            "User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.0 Safari/605.1.15" + "\r\n" +
-            "Authorization: Basic aGVsbG86d29ybGQ=" + "\r\n" +
-            "If-Modified-Since: Mon, 23 Oct 2023 20:23:00 GMT" + "\r\n" +
-            "Connection: close\r\n\r\n";
-        std::size_t bytes_transferred = boost::asio::write(socket_, boost::asio::buffer(request));
-
-        if (bytes_transferred == request.size()) {
-            std::cout << "Request sent successfully" << std::endl;
-        } else {
-            std::cerr << "Failed to send the complete request" << std::endl;
-            // Handle the failure if needed
-        }
-    }
-
-    void readResponse() {
-        boost::asio::streambuf response;
-        boost::asio::read_until(socket_, response, "\r\n");
-
-        std::istream response_stream(&response);
-        std::string http_version;
-        response_stream >> http_version;
-        unsigned int status_code;
-        response_stream >> status_code;
-        std::string status_message;
-        std::getline(response_stream, status_message);
-
-        if (!response_stream || http_version.substr(0, 5) != "HTTP/") {
-            std::cerr << "Invalid response\n";
-            return;
-        }
-
-        std::cout << "Response status code: " << status_code << "\n";
-        std::cout << "Response status message: " << status_message << "\n";
-        std::cout << "Response HTTP version: " << http_version << "\n";
-
-        boost::asio::read_until(socket_, response, "\r\n\r\n");
-        std::cout << "Response headers:\n";
-        std::cout << &response;
-
-        boost::system::error_code error;
-        while (boost::asio::read(socket_, response, boost::asio::transfer_at_least(1), error)) {
-            std::cout << "Received data:\n";
-            std::cout << &response;
-        }
-
-        if (error != boost::asio::error::eof) {
-            std::cerr << "Error reading response: " << error.message() << "\n";
-            throw boost::system::system_error(error);
-        }
-    }
-
 };
 
 int main() {
-    boost::asio::io_context io_context;
-    Client client(io_context, "localhost", "8080");
+    int sockfd;
+    struct sockaddr_in serverAddr;
+    socklen_t addrSize;
+
+    // Create a socket and connect to the server
+    sockfd = socket(AF_INET, SOCK_STREAM, 0);
+
+    serverAddr.sin_family = AF_INET;
+    serverAddr.sin_port = htons(8080);
+    serverAddr.sin_addr.s_addr = inet_addr("127.0.0.1"); // Replace with your server's IP address
+
+    connect(sockfd, (struct sockaddr*)&serverAddr, sizeof(serverAddr));
+
+    HTTPClient client;
+
+
+    client.sendGetRequest(sockfd, "/");
+
+    client.sendGetRequest(sockfd, "/goodbyeWorld_m.html");
     
-    for (int i = 0; i < 10; i++) {
-        client.sendGetRequest("/");
-    }
-    // client.sendGetRequest("/goodbyeWorld_m.html");
+    close(sockfd);
 
     return 0;
 }
-
-
-
-
-
-

@@ -139,9 +139,28 @@ class HttpRequest : public HttpMessageInterface {
 // an HTTP status code, headers, and (optional) content
 class HttpResponse : public HttpMessageInterface {
   public:
-    HttpResponse() : status_code_(HttpStatusCode::Ok) {}
-    HttpResponse(HttpStatusCode status_code) : status_code_(status_code) {}
+    HttpResponse() : status_code_(HttpStatusCode::Ok) {
+      SetHeader("Date", GetCurrentDate());
+      SetHeader("Server", "Sam and Jenny's Server, localhost");
+    }
+    HttpResponse(HttpStatusCode status_code) : status_code_(status_code) {
+      SetHeader("Date", GetCurrentDate());
+      SetHeader("Server", "Sam and Jenny's Server, localhost");
+    }
     ~HttpResponse() = default;
+
+    void SetContent(const std::string& content, const std::string& filepath="") {
+
+      content_ = std::move(content);
+      SetContentLength();
+
+      if (filepath != "") {
+        std::string contentType = GetContentType(filepath);
+        SetHeader("Content-Type", contentType);
+        std::string lastModified = GetLastModified(filepath);
+        SetHeader("Last-Modified", lastModified);
+      }
+    }
 
     void SetStatusCode(HttpStatusCode status_code) { status_code_ = status_code; }
 
@@ -152,7 +171,10 @@ class HttpResponse : public HttpMessageInterface {
 
   private:
     HttpStatusCode status_code_;
-};
+    std::string GetCurrentDate();
+    std::string GetContentType(const std::string& content);
+    std::string GetLastModified(const std::string& content);
+  };
 
 // Utility functions to convert HTTP message objects to string and vice versa
 std::string to_string(const HttpRequest& request);

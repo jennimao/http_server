@@ -2,25 +2,17 @@
 
 use strict;
 use warnings;
+use IO::Handle;
 
-use CGI;
+# Enable auto-flush for STDOUT
+STDOUT->autoflush(1);
 
-# Create a CGI object to parse query parameters
-my $cgi = CGI->new;
+# Send the Content-Type header to indicate that it's an HTML response
+print "Content-Type: text/html\n\n";
 
-# Get query parameters from the URL
-my $name = $cgi->param('name');
-my $age = $cgi->param('age');
-
-# Set the content type to HTML
-print $cgi->header('text/html');
-
-# Generate an HTML response
-print "<html>";
-print "<head><title>GET Request CGI</title></head>";
+# HTML response content
+print "<html><head><title>CGI Perl Script</title></head>";
 print "<body>";
-print "<h1>GET Request CGI Response</h1>";
-print "<p>Name: $name</p>";
-print "<p>Age: $age</p>";
-print "</body>";
-print "</html>";
+print "<h1>Hello from CGI Perl Script</h1>";
+print "<p>This is a simple CGI Perl script responding to a GET request.</p>";
+print "</body></html>";

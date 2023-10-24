@@ -58,14 +58,14 @@ bool isExecutable(const std::string& filePath) {
     }
 }
 
-HttpResponse runExecutable(const std::string& filePath) {
-    std::string command = filePath;
+HttpResponse runExecutable(const std::string& filepath) {
+    std::string command = filepath;
     std::string cgiOutput;
 
     // Execute the CGI script and capture its output
     FILE* cgiProcess = popen(command.c_str(), "r");
     if (cgiProcess) {
-        char buffer[1024];
+        char buffer[4096];
         while (fgets(buffer, sizeof(buffer), cgiProcess) != nullptr) {
             cgiOutput += buffer;
         }
@@ -73,8 +73,7 @@ HttpResponse runExecutable(const std::string& filePath) {
 
         // Return the CGI script's output as an HTTP response
         HttpResponse response(HttpStatusCode::Ok);
-        response.SetContent(cgiOutput);
-        response.SetHeader("Content-Type", "text/plain"); // Modify content type as needed
+        response.SetContent(cgiOutput, filepath);
         return response;
     } else {
         // Handle error if the CGI script couldn't be executed
@@ -526,6 +525,7 @@ HttpResponse RequestHandlers::GetHandler(const HttpRequest& request)
         //select what file to send back based on headers
         filepath = contentSelection(request, &ourResponse, &contentSelectionCriteria, filepath);
         std::cerr << filepath << "\n";
+
         // check if file is CGI and executable 
         if (isExecutable(filepath)) {
             std::cerr << "it's executable " << filepath << "\n";
@@ -541,7 +541,7 @@ HttpResponse RequestHandlers::GetHandler(const HttpRequest& request)
             data  = data + dataChunk + "\n";
         }
         std::cout << data << "\n";
-        ourResponse.SetContent(data);
+        ourResponse.SetContent(data, filepath);
         ourResponse.SetStatusCode(HttpStatusCode::Ok);
         std::cout << filepath << "\n";
         if(filepath.substr(filepath.length() - 5) == ".html")
@@ -571,7 +571,7 @@ void RequestHandlers::RegisterGetHandlers(HttpServer& server) {
     auto say_hello = [](const HttpRequest& request) -> HttpResponse {
         HttpResponse response(HttpStatusCode::Ok);
         response.SetHeader("Content-Type", "text/plain");
-        response.SetContent("Hello, world\n");
+        response.SetContent("Hello, world\n", "/");
         return response;
     };
 
@@ -585,7 +585,7 @@ void RequestHandlers::RegisterGetHandlers(HttpServer& server) {
         content += "</body>\n</html>\n";
 
         response.SetHeader("Content-Type", "text/html");
-        response.SetContent(content);
+        response.SetContent(content, "/index.html");
     
         return response;
     };
@@ -623,7 +623,7 @@ void RequestHandlers::RegisterPostHandlers(HttpServer& server) {
         {
             root = virtualHosts["root"]; //unspecified host leads to root virtual host being used
         }
-        // need to fix this because the root and cgi bin don't match up right now 
+        
         std::string filepath = root + our_uri;
         std::cout << "filepath: " << filepath << "\n";
 
@@ -635,12 +635,15 @@ void RequestHandlers::RegisterPostHandlers(HttpServer& server) {
 
         // TODO: check if the cgiScriptPath is in the list of existing resources
         if(!std::__fs::filesystem::exists(filepath)) {
+            std::cout << "not in path of resources" << "\n";
             // error 
             return HttpResponse(HttpStatusCode::InternalServerError);
         }
 
         // check if mapped file is executable 
         if (isExecutable(filepath)) {
+
+            std::cout << "executable" << "\n";
             
             // execute the CGI script and capture its output
             std::string command = filepath;
@@ -658,7 +661,7 @@ void RequestHandlers::RegisterPostHandlers(HttpServer& server) {
 
             // Read and capture the output of the CGI script (stdout)
             std::string cgiOutput;
-            char buffer[1024];
+            char buffer[4096];
             cgiProcess = popen(command.c_str(), "r");
             if (!cgiProcess) {
                 // Handle error if reading CGI output failed
@@ -671,8 +674,7 @@ void RequestHandlers::RegisterPostHandlers(HttpServer& server) {
 
             // Construct an HTTP response with the CGI output
             HttpResponse response(HttpStatusCode::Ok);
-            response.SetHeader("Content-Type", "text/plain"); // Set appropriate content type
-            response.SetContent(cgiOutput);
+            response.SetContent(cgiOutput, filepath);
             return response;
         }
         else {
