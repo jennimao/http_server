@@ -59,7 +59,7 @@ enum class HttpStatusCode {
   InternalServerError = 500,
   NotImplemented = 501,
   BadGateway = 502,
-  ServiceUnvailable = 503,
+  ServiceUnavailable = 503,
   GatewayTimeout = 504,
   HttpVersionNotSupported = 505
 };

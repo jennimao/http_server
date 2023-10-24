@@ -131,7 +131,7 @@ std::string contentSelection(const HttpRequest& request, HttpResponse* response,
 
 
 
-HttpResponse GetHandler(const HttpRequest& request) 
+HttpResponse RequestHandlers::GetHandler(const HttpRequest& request) 
 {
     std::cout << "hello!!!\n";
     //for testing, need to implement virtualHosts
@@ -285,10 +285,28 @@ HttpResponse GetHandler(const HttpRequest& request)
     //construct a filepath
     std::string filepath = root + our_uri;
     std::cout << "filepath: " << filepath << "\n";
-    //ensure the path is vald
+    //ensure the path is valid
     if(std::__fs::filesystem::exists(filepath)) 
     {
         std::cout << "here1\n";
+
+        // handle load balance query endpoint 
+        if (our_uri == "/load")
+        {
+            int newRequests = 1000;
+            if (newRequests < 0 || newRequests > 100000) {
+                ourResponse.SetStatusCode(HttpStatusCode::ServiceUnavailable); //503
+            }
+            else  {
+                ourResponse.SetStatusCode(HttpStatusCode::Ok); //200
+            }
+
+            // make wrapper function for headers
+            return ourResponse; 
+        }
+
+
+
         //select what file to send back based on headers
         //filepath = contentSelection(request, &ourResponse, &contentSelectionCriteria, filepath);
         //fill in response message
@@ -350,12 +368,12 @@ void RequestHandlers::RegisterGetHandlers(HttpServer& server) {
     };
 
     auto getHandler = [](const HttpRequest& request) -> HttpResponse {
-        return GetHandler(request);
-
+        return RequestHandlers::GetHandler(request);
     };
 
     //server.RegisterHttpRequestHandler("/index.html", HttpMethod::GET, getHandler);
     server.RegisterHttpRequestHandler(HttpMethod::GET, getHandler);
+    server.RegisterHttpRequestHandler("/", HttpMethod::GET, say_hello);
     //server.RegisterHttpRequestHandler("/hello.html", HttpMethod::GET, send_html);
 }
 

@@ -115,8 +115,8 @@ int main() {
     boost::asio::io_context io_context;
     Client client(io_context, "localhost", "8080");
     
-    for (int i = 0; i < 2000; i++) {
-        client.sendGetRequest("/index.html");
+    for (int i = 0; i < 10; i++) {
+        client.sendGetRequest("/");
     }
     client.sendGetRequest("/goodbyeWorld.html");
 

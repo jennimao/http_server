@@ -26,12 +26,15 @@ void log(const std::string& message) {
 
 namespace simple_http_server {
 
+std::atomic<int> queuedRequests(0);
+
+
 HttpServer::HttpServer(const std::string &host, std::uint16_t port)
     : host_(host),
       port_(port),
       sock_fd_(0),
       running_(false),
-      worker_kqueue_fd_(),
+      workers(),
       rng_(std::chrono::steady_clock::now().time_since_epoch().count()),
       sleep_times_(10, 100) {
   CreateSocket();
@@ -126,8 +129,6 @@ void HttpServer::WorkerThread(int workerID, int listeningSocket) {
 
     // register the listening socket with the worker's kqueue
     ControlKqueueEvent(kq, EV_ADD, listeningSocket, EVFILT_READ, &timeout);
-    // there is another function to do this with 
-
 
     struct kevent events[kMaxEvents];
     while (running_) {
@@ -362,7 +363,7 @@ HttpResponse HttpServer::HandleHttpRequest(const HttpRequest &request) {
 
     //test for method indexing
     auto it = request_handlers_test.find(request.method());
-    if (it == request_handlers_test.end()) {  // this uri is not registered
+    if (it == request_handlers_test.end()) {  // this method is not registered
         return HttpResponse(HttpStatusCode::NotFound);
     }
 
@@ -382,4 +383,5 @@ void HttpServer::ControlKqueueEvent(int kq, int op, int fd, std::uint32_t events
         throw std::runtime_error((op == EV_DELETE) ? "Failed to remove file descriptor" : "Failed to add file descriptor");
     }    
 }
+
 }  // namespace simple_http_server

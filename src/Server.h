@@ -33,8 +33,11 @@ struct EventData {
   char buffer[kMaxBufferSize];
 };
 
+
 // A request handler should expect a request as argument and returns a response
+//using HttpRequestHandler_t = std::function<HttpResponse(const HttpRequest&)>;
 using HttpRequestHandler_t = std::function<HttpResponse(const HttpRequest&)>;
+
 
 // The server consists of:
 // - 1 main thread
@@ -66,7 +69,8 @@ class HttpServer {
 
         std::string host() const { return host_; }
         std::uint16_t port() const { return port_; }
-        bool running() const { return running_; }
+        bool running() const { return running_; } 
+        int sock_fd_;
 
     private:
         static constexpr int kBacklogSize = 1000;
@@ -76,7 +80,6 @@ class HttpServer {
 
         std::string host_;
         std::uint16_t port_;
-        int sock_fd_;
         bool running_;
         std::thread listener_thread_;
         std::vector<std::thread> workers;
