@@ -18,12 +18,12 @@
 #include "Uri.h"
 #include "RequestHandlers.h"
 
-using simple_http_server::HttpMethod;
-using simple_http_server::HttpRequest;
-using simple_http_server::HttpResponse;
-using simple_http_server::HttpServer;
-using simple_http_server::HttpStatusCode;
-using simple_http_server::RequestHandlers;
+using myHttpServer::MethodType;
+using myHttpServer::HttpRequest;
+using myHttpServer::HttpResponse;
+using myHttpServer::HttpServer;
+using myHttpServer::HttpStatusCode;
+using myHttpServer::RequestHandlers;
 
 void ensure_enough_resource(int resource, std::uint32_t soft_limit, std::uint32_t hard_limit) {
   rlimit new_limit, old_limit;
@@ -102,10 +102,10 @@ int main(int argc, char* argv[]) {
     return response;
   };*/
 
-  //server.RegisterHttpRequestHandler("/", HttpMethod::HEAD, say_hello);
-  //server.RegisterHttpRequestHandler("/", HttpMethod::GET, say_hello);
-  //server.RegisterHttpRequestHandler("/hello.html", HttpMethod::HEAD, send_html);
-  //server.RegisterHttpRequestHandler("/hello.html", HttpMethod::GET, send_html);
+  //server.RegisterHttpRequestHandler("/", MethodType::HEAD, say_hello);
+  //server.RegisterHttpRequestHandler("/", MethodType::GET, say_hello);
+  //server.RegisterHttpRequestHandler("/hello.html", MethodType::HEAD, send_html);
+  //server.RegisterHttpRequestHandler("/hello.html", MethodType::GET, send_html);
 
 
   try {

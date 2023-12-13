@@ -6,7 +6,7 @@
 #include "Uri.h"
 #include "Message.h"
 
-namespace simple_http_server {
+namespace myHttpServer {
 
 class RequestHandlers { 
 public:
@@ -21,6 +21,6 @@ private:
 
 };
 
-} // namespace simple_http_server
+} // namespace myHttpServer
 
 #endif // REQUEST_HANDLERS_H

@@ -21,28 +21,14 @@
 
 namespace fs = std::filesystem;
 
-namespace simple_http_server {
+namespace myHttpServer {
 
-std::string to_string(HttpMethod method) {
+std::string to_string(MethodType method) {
   switch (method) {
-    case HttpMethod::GET:
+    case MethodType::GET:
       return "GET";
-    case HttpMethod::HEAD:
-      return "HEAD";
-    case HttpMethod::POST:
+    case MethodType::POST:
       return "POST";
-    case HttpMethod::PUT:
-      return "PUT";
-    case HttpMethod::DELETE:
-      return "DELETE";
-    case HttpMethod::CONNECT:
-      return "CONNECT";
-    case HttpMethod::OPTIONS:
-      return "OPTIONS";
-    case HttpMethod::TRACE:
-      return "TRACE";
-    case HttpMethod::PATCH:
-      return "PATCH";
     default:
       return std::string();
   }
@@ -50,14 +36,8 @@ std::string to_string(HttpMethod method) {
 
 std::string to_string(HttpVersion version) {
   switch (version) {
-    case HttpVersion::HTTP_0_9:
-      return "HTTP/0.9";
-    case HttpVersion::HTTP_1_0:
-      return "HTTP/1.0";
     case HttpVersion::HTTP_1_1:
       return "HTTP/1.1";
-    case HttpVersion::HTTP_2_0:
-      return "HTTP/2.0";
     default:
       return std::string();
   }
@@ -91,34 +71,24 @@ std::string to_string(HttpStatusCode status_code) {
       return "Not Implemented";
     case HttpStatusCode::BadGateway:
       return "Bad Gateway";
+    case HttpStatusCode::Unauthorized:
+      return "Unauthorized";
+    case HttpStatusCode::NotModified:
+      return "Not Modified";
     default:
       return std::string();
   }
 }
 
-HttpMethod string_to_method(const std::string& method_string) {
+MethodType string_to_method(const std::string& method_string) {
   std::string method_string_uppercase;
   std::transform(method_string.begin(), method_string.end(),
                  std::back_inserter(method_string_uppercase),
                  [](char c) { return toupper(c); });
   if (method_string_uppercase == "GET") {
-    return HttpMethod::GET;
-  } else if (method_string_uppercase == "HEAD") {
-    return HttpMethod::HEAD;
+    return MethodType::GET;
   } else if (method_string_uppercase == "POST") {
-    return HttpMethod::POST;
-  } else if (method_string_uppercase == "PUT") {
-    return HttpMethod::PUT;
-  } else if (method_string_uppercase == "DELETE") {
-    return HttpMethod::DELETE;
-  } else if (method_string_uppercase == "CONNECT") {
-    return HttpMethod::CONNECT;
-  } else if (method_string_uppercase == "OPTIONS") {
-    return HttpMethod::OPTIONS;
-  } else if (method_string_uppercase == "TRACE") {
-    return HttpMethod::TRACE;
-  } else if (method_string_uppercase == "PATCH") {
-    return HttpMethod::PATCH;
+    return MethodType::POST;
   } else {
     throw std::invalid_argument("Unexpected HTTP method");
   }
@@ -129,15 +99,9 @@ HttpVersion string_to_version(const std::string& version_string) {
   std::transform(version_string.begin(), version_string.end(),
                  std::back_inserter(version_string_uppercase),
                  [](char c) { return toupper(c); });
-  if (version_string_uppercase == "HTTP/0.9") {
-    return HttpVersion::HTTP_0_9;
-  } else if (version_string_uppercase == "HTTP/1.0") {
-    return HttpVersion::HTTP_1_0;
-  } else if (version_string_uppercase == "HTTP/1.1") {
+
+  if (version_string_uppercase == "HTTP/1.1") {
     return HttpVersion::HTTP_1_1;
-  } else if (version_string_uppercase == "HTTP/2" ||
-             version_string_uppercase == "HTTP/2.0") {
-    return HttpVersion::HTTP_2_0;
   } else {
     throw std::invalid_argument("Unexpected HTTP version");
   }

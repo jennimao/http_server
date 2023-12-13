@@ -10,7 +10,7 @@
 #include "Message.h"
 #include "Uri.h"
 
-using namespace simple_http_server;
+using namespace myHttpServer;
 
 #define EXPECT_TRUE(x)                                                   \
   {                                                                      \
@@ -32,7 +32,7 @@ void test_uri_path_to_lowercase() {
 }
 
 void test_method_to_string() {
-  EXPECT_TRUE(to_string(HttpMethod::GET) == "GET");
+  EXPECT_TRUE(to_string(MethodType::GET) == "GET");
 }
 
 void test_version_to_string() {
@@ -45,8 +45,8 @@ void test_status_code_to_string() {
 }
 
 void test_string_to_method() {
-  EXPECT_TRUE(string_to_method("GET") == HttpMethod::GET);
-  EXPECT_TRUE(string_to_method("post") == HttpMethod::POST);
+  EXPECT_TRUE(string_to_method("GET") == MethodType::GET);
+  EXPECT_TRUE(string_to_method("post") == MethodType::POST);
 }
 
 void test_string_to_version() {
@@ -55,7 +55,7 @@ void test_string_to_version() {
 
 void test_request_to_string() {
   HttpRequest request;
-  request.SetMethod(HttpMethod::GET);
+  request.SetMethod(MethodType::GET);
   request.SetUri(Uri("/"));
   request.SetHeader("Connection", "Keep-Alive");
   request.SetContent("hello, world\n");

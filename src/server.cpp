@@ -24,7 +24,7 @@ void log(const std::string& message) {
     std::cout << message << std::endl;
 }
 
-namespace simple_http_server {
+namespace myHttpServer {
 
 
 HttpServer::HttpServer(const std::string &host, std::uint16_t port)
@@ -342,7 +342,7 @@ void HttpServer::HandleHttpData(const EventData &raw_request, EventData *raw_res
     }
 
     // set response to write to client
-    response_string = to_string(http_response, http_request.method() != HttpMethod::HEAD);
+    response_string = to_string(http_response, true); //CHANGE
     memcpy(raw_response->buffer, response_string.c_str(), kMaxBufferSize);
     raw_response->length = response_string.length();
 }
@@ -381,4 +381,4 @@ void HttpServer::ControlKqueueEvent(int kq, int op, int fd, std::uint32_t events
     }    
 }
 
-}  // namespace simple_http_server
+}  // namespace myHttpServer

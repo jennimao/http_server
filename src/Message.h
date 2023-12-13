@@ -7,33 +7,20 @@
 
 #include "Uri.h"
 
-namespace simple_http_server {
+namespace myHttpServer {
 
-// HTTP methods defined in the following document:
-// https://developer.mozilla.org/en-US/docs/Web/HTTP/Methods
-enum class HttpMethod {
+// HTTP methods
+enum class MethodType {
   GET,
-  HEAD,
   POST,
-  PUT,
-  DELETE,
-  CONNECT,
-  OPTIONS,
-  TRACE,
-  PATCH
 };
 
-// Here we only support HTTP/1.1
+//we only support HTTP/1.1
 enum class HttpVersion {
-  HTTP_0_9 = 9,
-  HTTP_1_0 = 10,
   HTTP_1_1 = 11,
-  HTTP_2_0 = 20
 };
 
-// HTTP response status codes as listed in:
-// https://developer.mozilla.org/en-US/docs/Web/HTTP/Status
-// Note that not all of them are present in this enum class
+// HTTP response status codes, not all of them are present
 enum class HttpStatusCode {
   Continue = 100,
   SwitchingProtocols = 101,
@@ -65,34 +52,28 @@ enum class HttpStatusCode {
 };
 
 // Utility functions to convert between string or integer to enum classes
-std::string to_string(HttpMethod method);
+std::string to_string(MethodType method);
 std::string to_string(HttpVersion version);
 std::string to_string(HttpStatusCode status_code);
-HttpMethod string_to_method(const std::string& method_string);
+MethodType string_to_method(const std::string& method_string);
 HttpVersion string_to_version(const std::string& version_string);
 
 // Defines the common interface of an HTTP request and HTTP response.
 // Each message will have an HTTP version, collection of header fields,
 // and message content. The collection of headers and content can be empty.
-class HttpMessageInterface {
+class HttpMessage {
   public:
-    HttpMessageInterface() : version_(HttpVersion::HTTP_1_1) {}
-    virtual ~HttpMessageInterface() = default;
+    HttpMessage() : version_(HttpVersion::HTTP_1_1) {}
+    virtual ~HttpMessage() = default;
 
     void SetHeader(const std::string& key, const std::string& value) {
       headers_[key] = std::move(value);
     }
-    void RemoveHeader(const std::string& key) { headers_.erase(key); }
-    void ClearHeader() { headers_.clear(); }
     void SetContent(const std::string& content) {
       content_ = std::move(content);
       SetContentLength();
     }
-    void ClearContent(const std::string& content) {
-      content_.clear();
-      SetContentLength();
-    }
-
+    
     HttpVersion version() const { return version_; }
     std::string header(const std::string& key) const {
       if (headers_.count(key) > 0) return headers_.at(key);
@@ -115,29 +96,29 @@ class HttpMessageInterface {
 // An HttpRequest object represents a single HTTP request
 // It has a HTTP method and URI so that the server can identify
 // the corresponding resource and action
-class HttpRequest : public HttpMessageInterface {
+class HttpRequest : public HttpMessage {
  public:
-  HttpRequest() : method_(HttpMethod::GET) {}
+  HttpRequest() : method_(MethodType::GET) {}
   ~HttpRequest() = default;
 
-  void SetMethod(HttpMethod method) { method_ = method; }
+  void SetMethod(MethodType method) { method_ = method; }
   void SetUri(const Uri& uri) { uri_ = std::move(uri); }
 
-  HttpMethod method() const { return method_; }
+  MethodType method() const { return method_; }
   Uri uri() const { return uri_; }
 
   friend std::string to_string(const HttpRequest& request);
   friend HttpRequest string_to_request(const std::string& request_string);
 
  private:
-  HttpMethod method_;
+  MethodType method_;
   Uri uri_;
 };
 
 // An HTTPResponse object represents a single HTTP response
 // The HTTP server sends an HTTP response to a client that include
 // an HTTP status code, headers, and (optional) content
-class HttpResponse : public HttpMessageInterface {
+class HttpResponse : public HttpMessage {
   public:
     HttpResponse() : status_code_(HttpStatusCode::Ok) {
       SetHeader("Date", GetCurrentDate());
@@ -162,7 +143,7 @@ class HttpResponse : public HttpMessageInterface {
       }
     }
 
-    void SetStatusCode(HttpStatusCode status_code) { status_code_ = status_code; }
+    void SetStatusCode(HttpStatusCode status_code) { status_code_ = status_code;}
 
     HttpStatusCode status_code() const { return status_code_; }
 
@@ -182,6 +163,6 @@ std::string to_string(const HttpResponse& response, bool send_content = true);
 HttpRequest string_to_request(const std::string& request_string);
 HttpResponse string_to_response(const std::string& response_string);
 
-}  // namespace simple_http_server
+}  // namespace myHttpServer
 
 #endif  // HTTP_MESSAGE_H_

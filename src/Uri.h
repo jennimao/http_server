@@ -8,7 +8,7 @@
 #include <string>
 #include <utility>
 
-namespace simple_http_server {
+namespace myHttpServer {
 
 // A Uri object will contain a valid scheme (for example: HTTP), host,
 // port, and the actual URI path
@@ -46,6 +46,6 @@ class Uri {
   }
 };
 
-}  // namespace simple_http_server
+}  // namespace HttpServer
 
 #endif  // URI_H_

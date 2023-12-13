@@ -22,7 +22,7 @@
 using namespace boost;
 
 
-namespace simple_http_server {
+namespace myHttpServer {
 std::unordered_map<std::string, std::string> virtualHosts; 
 std::string const acceptedFormats[] = {"text/html", "text/plain"};
 std::string const acceptedFormatsEndings[] = {".html", ".txt"};
@@ -328,7 +328,8 @@ std::string contentSelection(const HttpRequest& request, HttpResponse* response,
         
         if(fileTime.time_since_epoch() < contentCriteria->ifModifiedSince.time_since_epoch())
         {
-            return "Not modified";
+            
+            return "Not modified:" + filepath;
         }
     } 
 
@@ -341,12 +342,33 @@ std::string contentSelection(const HttpRequest& request, HttpResponse* response,
 }
 
 
+int noContentRequired(std::string filepath, HttpResponse* ourResponse)
+{
+    if(filepath.contains == "Not modified")
+    {
+        (*ourResponse).SetStatusCode(myHttpServer::HttpStatusCode::NotModified);
+        return 1;
+    }
+    else if (filepath == "NotFound")
+    {
+        (*ourResponse).SetStatusCode(myHttpServer::HttpStatusCode::NotFound);
+        return 1;
+    }
+    else if (filepath == "Unauthorized")
+    {
+        (*ourResponse).SetStatusCode(myHttpServer::HttpStatusCode::Unauthorized);
+        return 1;
+    }
+    return 0;
+}
+
+
 HttpResponse RequestHandlers::GetHandler(const HttpRequest& request) 
 {
     std::cout << "hello!!!\n";
     //for testing, need to implement virtualHosts
     ////virtualHosts.insert({"root", "/Users/samdetor/http_server/src"});
-    virtualHosts.insert({"root", "/Users/jennymao/Documents/repos/http_server/src"});
+    //virtualHosts.insert({"root", "/Users/jennymao/Documents/repos/http_server/src"});
     HttpResponse ourResponse;
     ContentSelection contentSelectionCriteria;
     std::string root;
@@ -501,6 +523,8 @@ HttpResponse RequestHandlers::GetHandler(const HttpRequest& request)
     //construct a filepath
     std::string filepath = root + our_uri;
     std::cout << "filepath: " << filepath << "\n";
+
+   
     //ensure the path is valid
     if(std::__fs::filesystem::exists(filepath)) 
     {
@@ -524,6 +548,10 @@ HttpResponse RequestHandlers::GetHandler(const HttpRequest& request)
 
         //select what file to send back based on headers
         filepath = contentSelection(request, &ourResponse, &contentSelectionCriteria, filepath);
+        if(noContentRequired(filepath, &ourResponse))
+        {
+            return ourResponse;
+        }
         std::cerr << filepath << "\n";
 
         // check if file is CGI and executable 
@@ -594,10 +622,10 @@ void RequestHandlers::RegisterGetHandlers(HttpServer& server) {
         return RequestHandlers::GetHandler(request);
     };
 
-    //server.RegisterHttpRequestHandler("/index.html", HttpMethod::GET, getHandler);
-    server.RegisterHttpRequestHandler(HttpMethod::GET, getHandler);
-    server.RegisterHttpRequestHandler("/", HttpMethod::GET, say_hello);
-    //server.RegisterHttpRequestHandler("/hello.html", HttpMethod::GET, send_html);
+    //server.RegisterHttpRequestHandler("/index.html", MethodType::GET, getHandler);
+    server.RegisterHttpRequestHandler(MethodType::GET, getHandler);
+    server.RegisterHttpRequestHandler("/", MethodType::GET, say_hello);
+    //server.RegisterHttpRequestHandler("/hello.html", MethodType::GET, send_html);
 }
 
 
@@ -684,7 +712,7 @@ void RequestHandlers::RegisterPostHandlers(HttpServer& server) {
 
     };
     
-    server.RegisterHttpRequestHandler(HttpMethod::POST, run_cgi);
+    server.RegisterHttpRequestHandler(MethodType::POST, run_cgi);
 }
 
 void RequestHandlers::RegisterHandlers(HttpServer& server) {
