@@ -16,3 +16,4 @@ The server has an event-driven symmetric concurrency structure implemented using
 <img width="728" alt="Screenshot 2023-12-14 at 1 06 05 AM" src="https://github.com/jennimao/http_server/assets/79879717/4c62b9b3-faa1-4500-8985-159013ca688c">
 
 Max Throughput reached (in Mbps): 10.06296
+We toggled the kMaxConnections, kMaxEvents and kThreadPoolSize. We ended up at the following setting: kMaxConnections = 500 kMaxEvents = 100; kThreadPoolSize = 4; With increased values of these variables, there was too much overhead for the server to handler and it slowed down transmission speed.
