@@ -13,4 +13,6 @@ The server has a /load endpoint that will return how many requests are currently
 The server has an event-driven symmetric concurrency structure implemented using kqueue in which there are k worker threads that all accept incoming client connections and process the requests.
 
 ### Performance and benchmarking methodlogy 
-So far, we have been testing using concurrent client executables. Further benchmarking to be done. 
+<img width="728" alt="Screenshot 2023-12-14 at 1 06 05 AM" src="https://github.com/jennimao/http_server/assets/79879717/4c62b9b3-faa1-4500-8985-159013ca688c">
+
+Max Throughput reached (in Mbps): 10.06296
