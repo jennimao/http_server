@@ -20,7 +20,7 @@
 #include <filesystem>
 
 using namespace boost;
-
+namespace fs = std::__fs::filesystem;
 
 namespace myHttpServer {
 std::unordered_map<std::string, std::string> virtualHosts; 
@@ -43,9 +43,74 @@ void fillInBadResponse(HttpResponse* response)
     return; 
 }
 
-namespace fs = std::__fs::filesystem;
+
+////////////////////////////////////////////////////////////
+// Config file parsing and virtual hosts
+////////////////////////////////////////////////////////////
+
+void RequestHandlers::ParseConfigFile(std::string configfile, int* port, int* selectLoops)
+{
+  std::cout << "hello\n";
+  std::string dataChunk;
+  std::ifstream fileData(configfile);
+  std::string DocumentRoot;
+  std::string ServerName;
+  while (std::getline (fileData, dataChunk)) { //parsing based on example config in spec, only supports listeing on one port
+          std::cout << "DataChunk: " << dataChunk << "\n";
+          if (dataChunk.find("Listen") != std::string::npos)
+          {
+            *port = std::stoi(dataChunk.substr(7, dataChunk.length()));
+          }
+
+          else if (dataChunk.find("nSelectLoops") != std::string::npos)
+          {
+            *selectLoops = std::stoi(dataChunk.substr(13, dataChunk.length()));
+            std::cout << "chunk: " << dataChunk.substr(13, dataChunk.length()) << "\n";
+          }
+
+          else if (dataChunk.find("<VirtualHost") != std::string::npos){
+            while (std::getline (fileData, dataChunk)) {
+              if(dataChunk.find("DocumentRoot") != std::string::npos)
+              {
+                DocumentRoot = dataChunk.substr(dataChunk.find("DocumentRoot ") + 14), dataChunk.length();
+              }
+              
+              else if(dataChunk.find("ServerName") != std::string::npos)
+              {
+                ServerName = dataChunk.substr(dataChunk.find("ServerName ") + 11, dataChunk.length());
+              }
+              
+              else if(dataChunk.find("</VirtualHost>") != std::string::npos){
+                virtualHosts[ServerName] = DocumentRoot;
+                if(virtualHosts.size() == 1)
+                {
+                  virtualHosts["root"] = DocumentRoot;
+                }
+                break;
+              }
+          }
+
+        }
+
+  }
+  std::cout << "end\n";
+}
+
+void RequestHandlers::PrintVirtualHosts(void)
+{
+    // Iterate over the elements and print them
+    for (const auto& pair : virtualHosts) {
+        std::cout << "Key: " << pair.first << ", Value: " << pair.second << std::endl;
+    }
+}
 
 
+
+
+
+////////////////////////////////////////////////////////////
+// Executable CGI Script Handling
+////////////////////////////////////////////////////////////
 bool isExecutable(const std::string& filePath) {
     try {
         // Use std::filesystem to check if the file exists and is executable
@@ -58,18 +123,37 @@ bool isExecutable(const std::string& filePath) {
     }
 }
 
-HttpResponse runExecutable(const std::string& filepath) {
+HttpResponse runGetExecutable(const std::string& filepath) {
     std::string command = filepath;
-    std::string cgiOutput;
+
+    // Set up environment variables
+    setenv("REQUEST_METHOD", "GET", 1);
+    setenv("QUERY_STRING", filepath.c_str(), 1);
+    setenv("REMOTE_ADDR", "127.0.0.1", 1); 
+    setenv("SERVER_NAME", "localhost", 1); 
+    setenv("SERVER_PORT", "8080", 1); 
+    setenv("SERVER_SOFTWARE",
+host: 
+user_agent str: Mozilla/5.0(Macintosh;IntelMacOSX10_15_7)AppleWebKit/537.36(KHTML,likeGecko)Chrome/120.0.0.0Safari/537.36
+filepath: /Users/jennymao/Documents/repos/http_server/virtualhost1/favicon.ico
+Bad URL (filepath): /Users/jennymao/Documents/repos/http_server/virtualhost1/favicon.ico
+HTTP/1.1 200 OK
+Date: Thu, 14 Dec 2023 04:28:54 GMT
+Server: Sam and Jenny's Server, localhost
+ "HTTP/1.1", 1); 
 
     // Execute the CGI script and capture its output
     FILE* cgiProcess = popen(command.c_str(), "r");
+
     if (cgiProcess) {
+        std::string cgiOutput;
         char buffer[4096];
-        while (fgets(buffer, sizeof(buffer), cgiProcess) != nullptr) {
-            cgiOutput += buffer;
+
+        while (fgets(buffer, sizeof(buffer), cgiProcess) != NULL) {
+            cgiOutput += buffer; 
         }
-        pclose(cgiProcess);
+    
+        int status = pclose(cgiProcess);
 
         // Return the CGI script's output as an HTTP response
         HttpResponse response(HttpStatusCode::Ok);
@@ -80,6 +164,88 @@ HttpResponse runExecutable(const std::string& filepath) {
         return HttpResponse(HttpStatusCode::InternalServerError);
     }
 }
+
+HttpResponse runPostExecutable(const std::string& filepath, const std::string& input) {
+    
+    std::string command = filepath;
+
+    // Set up environment variables
+    setenv("REQUEST_METHOD", "POST", 1);
+    setenv("CONTENT_TYPE", "application/x-www-form-urlencoded", 1);
+    setenv("CONTENT_LENGTH", std::to_string(input.size()).c_str(), 1);
+    setenv("QUERY_STRING", command.c_str(), 1);
+    setenv("REMOTE_ADDR", "127.0.0.1", 1); 
+    setenv("SERVER_NAME", "localhost", 1); 
+    setenv("SERVER_PORT", "8080", 1); 
+    setenv("SERVER_SOFTWARE", "HTTP/1.1", 1); 
+
+    int inputPipe[2];
+    int outputPipe[2];
+
+    if (pipe(inputPipe) == -1 || pipe(outputPipe) == -1) {
+        std::cerr << "Pipe creation failed" << std::endl;
+        return HttpResponse(HttpStatusCode::InternalServerError);
+    }
+
+    pid_t pid = fork();
+    if (pid < 0) {
+        std::cerr << "Fork failed and CGI script was not executed" << std::endl;
+        // Handle error if the CGI script couldn't be executed
+        return HttpResponse(HttpStatusCode::InternalServerError);
+
+    } 
+    else if (pid == 0) { // Child process
+        close(inputPipe[1]); // Close write end of input pipe
+        close(outputPipe[0]); // Close read end of output pipe
+
+        // Redirect stdin to input pipe
+        dup2(inputPipe[0], STDIN_FILENO);
+        close(inputPipe[0]);
+
+        // Redirect stdout to output pipe
+        dup2(outputPipe[1], STDOUT_FILENO);
+        close(outputPipe[1]);
+
+        // Replace the child process with the desired command
+        execl(command.c_str(), NULL);
+        std::cerr << "Exec failed" << std::endl;
+        return HttpResponse(HttpStatusCode::InternalServerError);
+
+    } 
+    else { // Parent process
+        close(inputPipe[0]); // Close read end of input pipe
+        close(outputPipe[1]); // Close write end of output pipe
+
+        // Write input to the child process (stdin)
+        write(inputPipe[1], input.c_str(), input.size());
+        close(inputPipe[1]);
+
+        // Read output from the child process (stdout)
+        char buffer[4096];
+        std::string output;
+        ssize_t bytesRead;
+
+        while ((bytesRead = read(outputPipe[0], buffer, sizeof(buffer))) > 0) {
+            output.append(buffer, bytesRead);
+        }
+        close(outputPipe[0]);
+    
+        std::cout << "Captured CGI Output:\n" << output << "\n";
+
+        // Return the CGI script's output as an HTTP response
+        HttpResponse response(HttpStatusCode::Ok);
+        response.SetContent(output, filepath);
+        return response;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////
+// Authorization 
+////////////////////////////////////////////////////////////
 
 //this method assumes the .htaccess file is perfectly formatted
 int parseAuthFile(std::string dirToCheck, ContentSelection* contentCriteria) //parsing based on spec format
@@ -178,6 +344,13 @@ int authorizationCheck(ContentSelection* contentCriteria, std::string filepath)
 
 }
 
+
+
+
+
+////////////////////////////////////////////////////////////
+// Content Selection 
+////////////////////////////////////////////////////////////
 //returns the filepath of the resource to return
 std::string contentSelection(const HttpRequest& request, HttpResponse* response, ContentSelection* contentCriteria, std::string filepath) {
     
@@ -342,7 +515,6 @@ std::string contentSelection(const HttpRequest& request, HttpResponse* response,
 
 }
 
-
 int noContentRequired(std::string filepath, HttpResponse* ourResponse)
 {
     if(filepath.find("Not modified") != std::string::npos)
@@ -368,12 +540,16 @@ int noContentRequired(std::string filepath, HttpResponse* ourResponse)
 }
 
 
+
+
+
+////////////////////////////////////////////////////////////
+// GET handling                                           
+////////////////////////////////////////////////////////////
+
 HttpResponse RequestHandlers::GetHandler(const HttpRequest& request) 
 {
-    std::cout << "hello!!!\n";
-    //for testing, need to implement virtualHosts
-    ////virtualHosts.insert({"root", "/Users/samdetor/http_server/src"});
-    //virtualHosts.insert({"root", "/Users/jennymao/Documents/repos/http_server/src"});
+
     HttpResponse ourResponse;
     ContentSelection contentSelectionCriteria;
     std::string root;
@@ -563,7 +739,7 @@ HttpResponse RequestHandlers::GetHandler(const HttpRequest& request)
         // check if file is CGI and executable 
         if (isExecutable(filepath)) {
             std::cerr << "it's executable " << filepath << "\n";
-            return runExecutable(filepath);
+            return runGetExecutable(filepath);
         }
 
         //fill in response message
@@ -596,9 +772,7 @@ HttpResponse RequestHandlers::GetHandler(const HttpRequest& request)
         fillInBadResponse(&ourResponse);
         return ourResponse;
     }
-
-
-    }
+}
 
 void RequestHandlers::RegisterGetHandlers(HttpServer& server) {
   // Define and register GET handlers here
@@ -635,89 +809,47 @@ void RequestHandlers::RegisterGetHandlers(HttpServer& server) {
 }
 
 
+
+
+
+////////////////////////////////////////////////////////////
+// POST handling 
+////////////////////////////////////////////////////////////
+
 void RequestHandlers::RegisterPostHandlers(HttpServer& server) {
     auto run_cgi = [] (const HttpRequest& request) -> HttpResponse {
         std::string postData = request.content(); // POST data as stdin for the CGI
-
-        // Set up environment variables
-        setenv("REQUEST_METHOD", "POST", 1);
-        setenv("CONTENT_TYPE", "application/x-www-form-urlencoded", 1);
-        setenv("CONTENT_LENGTH", std::to_string(postData.size()).c_str(), 1);
-
         std::string root;
-        //validate URI
         std::string our_uri = request.uri().path();
 
         // configure virtual host 
-        if(virtualHosts.find(request.uri().host()) != virtualHosts.end())
-        {
+        if(virtualHosts.find(request.uri().host()) != virtualHosts.end()) {
             root = virtualHosts[request.uri().host()];
         }
-        else
-        {
+        else {
             root = virtualHosts["root"]; //unspecified host leads to root virtual host being used
         }
         
         std::string filepath = root + our_uri;
         std::cout << "filepath: " << filepath << "\n";
 
-
-        // Get the path to the CGI script for the requested URI
-        //std::string cgiScriptPath = request.uri().path();
-        // TOOD: need to replace this with the request path -- have to start at root
-        std::string cgiScriptPath = "../cgi-bin/script_cgi.pl";
-
         // TODO: check if the cgiScriptPath is in the list of existing resources
         if(!std::__fs::filesystem::exists(filepath)) {
-            std::cout << "not in path of resources" << "\n";
-            // error 
-            return HttpResponse(HttpStatusCode::InternalServerError);
+            std::cerr << "Resource Not Found" << "\n";
+            return HttpResponse(HttpStatusCode::NotFound);
         }
 
         // check if mapped file is executable 
         if (isExecutable(filepath)) {
-
-            std::cout << "executable" << "\n";
-            
-            // execute the CGI script and capture its output
-            std::string command = filepath;
-
-            // use popen to execute the CGI script and read its output
-            FILE* cgiProcess = popen(command.c_str(), "w");
-            if (!cgiProcess) {
-                // handle error if the CGI script couldn't be executed
-                return HttpResponse(HttpStatusCode::InternalServerError);
-            }
-
-            // Write the POST data to the CGI process's stdin
-            fwrite(postData.c_str(), 1, postData.length(), cgiProcess);
-            fclose(cgiProcess);
-
-            // Read and capture the output of the CGI script (stdout)
-            std::string cgiOutput;
-            char buffer[4096];
-            cgiProcess = popen(command.c_str(), "r");
-            if (!cgiProcess) {
-                // Handle error if reading CGI output failed
-                return HttpResponse(HttpStatusCode::InternalServerError);
-            }
-            while (fgets(buffer, sizeof(buffer), cgiProcess) != nullptr) {
-                cgiOutput += buffer;
-            }
-            fclose(cgiProcess);
-
-            // Construct an HTTP response with the CGI output
-            HttpResponse response(HttpStatusCode::Ok);
-            response.SetContent(cgiOutput, filepath);
-            return response;
+            std::cout << "it's executable " << filepath << "\n";
+            return runPostExecutable(filepath, postData);
         }
         else {
             // error handling if the mapped file is not executable 
             return HttpResponse(HttpStatusCode::InternalServerError);
         }
-
     };
-    
+
     server.RegisterHttpRequestHandler(MethodType::POST, run_cgi);
 }
 
@@ -727,63 +859,6 @@ void RequestHandlers::RegisterHandlers(HttpServer& server) {
     RegisterGetHandlers(server);
     RegisterPostHandlers(server);
     // Register all 50 request handlers here
-}
-
-
-void RequestHandlers::ParseConfigFile(std::string configfile, int* port, int* selectLoops)
-{
-  std::cout << "hello\n";
-  std::string dataChunk;
-  std::ifstream fileData(configfile);
-  std::string DocumentRoot;
-  std::string ServerName;
-  while (std::getline (fileData, dataChunk)) { //parsing based on example config in spec, only supports listeing on one port
-          std::cout << "DataChunk: " << dataChunk << "\n";
-          if (dataChunk.find("Listen") != std::string::npos)
-          {
-            *port = std::stoi(dataChunk.substr(7, dataChunk.length()));
-          }
-
-          else if (dataChunk.find("nSelectLoops") != std::string::npos)
-          {
-            *selectLoops = std::stoi(dataChunk.substr(13, dataChunk.length()));
-            std::cout << "chunk: " << dataChunk.substr(13, dataChunk.length()) << "\n";
-          }
-
-          else if (dataChunk.find("<VirtualHost") != std::string::npos){
-            while (std::getline (fileData, dataChunk)) {
-              if(dataChunk.find("DocumentRoot") != std::string::npos)
-              {
-                DocumentRoot = dataChunk.substr(dataChunk.find("DocumentRoot ") + 14), dataChunk.length();
-              }
-              
-              else if(dataChunk.find("ServerName") != std::string::npos)
-              {
-                ServerName = dataChunk.substr(dataChunk.find("ServerName ") + 11, dataChunk.length());
-              }
-              
-              else if(dataChunk.find("</VirtualHost>") != std::string::npos){
-                virtualHosts[ServerName] = DocumentRoot;
-                if(virtualHosts.size() == 1)
-                {
-                  virtualHosts["root"] = DocumentRoot;
-                }
-                break;
-              }
-          }
-
-        }
-
-  }
-  std::cout << "end\n";
-}
-
-void RequestHandlers::PrintVirtualHosts(void)
-{
-    // Iterate over the elements and print them
-    for (const auto& pair : virtualHosts) {
-        std::cout << "Key: " << pair.first << ", Value: " << pair.second << std::endl;
-    }
 }
 
 }

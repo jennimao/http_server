@@ -71,7 +71,7 @@ class HttpMessage {
     }
     void SetContent(const std::string& content) {
       content_ = std::move(content);
-      SetContentLength();
+      SetContentLength(content_);
     }
     
     HttpVersion version() const { return version_; }
@@ -88,7 +88,7 @@ class HttpMessage {
     std::map<std::string, std::string> headers_;
     std::string content_;
 
-    void SetContentLength() {
+    void SetContentLength(const std::string& content) {
       SetHeader("Content-Length", std::to_string(content_.length()));
     }
 };
@@ -133,7 +133,7 @@ class HttpResponse : public HttpMessage {
     void SetContent(const std::string& content, const std::string& filepath="") {
 
       content_ = std::move(content);
-      SetContentLength();
+      SetContentLength(content_);
 
       if (filepath != "") {
         std::string contentType = GetContentType(filepath);
