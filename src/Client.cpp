@@ -16,9 +16,10 @@ public:
     void sendGetRequest(int sockfd, const std::string& path) {
         // Create an HTTP GET request
         std::string request = "GET " + path + " HTTP/1.1\r\n";
-        request += "Host: mobile.cicada.cs.yale.edu\r\n"; // Replace with your server's host
+        request += "Host: cicada.cs.yale.edu\r\n"; // Replace with your server's host
         request += "User-Agent: CustomHTTPClient/1.0\r\n";
-        request += "Connection: close\r\n\r\n";
+        request += "If-Modified-Since: Mon, 24 Oct 2023 13:24:40 GMT\r\n\r\n";
+        //request += "Connection: close\r\n\r\n";
         printf("Request: %s\n", request.c_str());
         // Send the request to the server
         if (sendRequest(sockfd, request)) {
