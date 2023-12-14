@@ -237,7 +237,7 @@ HttpResponse runPostExecutable(const std::string& filepath, const std::string& i
 ////////////////////////////////////////////////////////////
 
 //this method assumes the .htaccess file is perfectly formatted
-int parseAuthFile(std::string dirToCheck, ContentSelection* contentCriteria) //parsing based on spec format
+std::string parseAuthFile(std::string dirToCheck, ContentSelection* contentCriteria) //parsing based on spec format
 {
     //format of file:
     /*
@@ -249,6 +249,8 @@ int parseAuthFile(std::string dirToCheck, ContentSelection* contentCriteria) //p
     std::string dataChunk; 
     std::string pass;
     std::string user;
+    std::string authType;
+    std::string authName;
     std::ifstream fileData(dirToCheck + "/.htaccess");
     while (std::getline (fileData, dataChunk)) {
         //std::cout << "datachunk: " << dataChunk << "\n";
@@ -258,6 +260,14 @@ int parseAuthFile(std::string dirToCheck, ContentSelection* contentCriteria) //p
         else if(dataChunk.find("Password") != std::string::npos)
         {
             pass = dataChunk.substr(9, dataChunk.length() - 9 - 1);
+        }
+        else if(dataChunk.find("AuthType")!= std::string::npos)
+        {
+            authType = dataChunk.substr(dataChunk.find("AuthType") + 9);
+        }
+        else if(dataChunk.find("AuthName")!= std::string::npos)
+        {
+            authName = dataChunk.substr(dataChunk.find("AuthName") + 9);
         }
     }
 
@@ -293,16 +303,17 @@ int parseAuthFile(std::string dirToCheck, ContentSelection* contentCriteria) //p
     }
     if(contentCriteria->password == passDecoded && contentCriteria->username == userDecoded)
     {
-        return 0;
+        return "ok";
     }
     else
     {
-        return -1;
+        std::cout << authType << ":" << authName << "\n";
+        return authType + ":" + authName;
     }
 
 }
 
-int authorizationCheck(ContentSelection* contentCriteria, std::string filepath)
+std::string authorizationCheck(ContentSelection* contentCriteria, std::string filepath)
 {
     std::string dirToCheck;
     bool authRequired = false;
@@ -326,7 +337,7 @@ int authorizationCheck(ContentSelection* contentCriteria, std::string filepath)
 
     if(!authRequired)
     {
-        return 0;
+        return "ok";
     }
 
     return parseAuthFile(dirToCheck, contentCriteria);
@@ -552,10 +563,11 @@ std::string contentSelection(const HttpRequest& request, HttpResponse* response,
     } 
 
     //check authorization
-    int ret = authorizationCheck(contentCriteria, filepath);
-    if(ret != 0)
+    std::string ret = authorizationCheck(contentCriteria, filepath);
+    if(ret != "ok")
     {
-        return "Unauthorized";
+        std::cout <<  "Unauthorized: " << ret << "\n";
+        return "Unauthorized: " + ret;
     }
 
     return toReturn;
@@ -580,9 +592,16 @@ int fillInErrorResponse(std::string filepath, HttpResponse* ourResponse)
         (*ourResponse).SetStatusCode(myHttpServer::HttpStatusCode::NotFound);
         return 1;
     }
-    else if (filepath == "Unauthorized")
+    else if (filepath.find("Unauthorized") != std::string::npos)
     {
+        int posOfFirstColon = filepath.find(":");
+        int posOfSecondColon = filepath.substr(posOfFirstColon + 1).find(":");
+        std::string authType = filepath.substr(posOfFirstColon + 1, posOfSecondColon);
+        std::string authName = filepath.substr(posOfSecondColon + posOfFirstColon + 2);
+        std::cout << "authType" << authType << "\n";
+        std::cout << "authName" << authName << "\n";
         (*ourResponse).SetStatusCode(myHttpServer::HttpStatusCode::Unauthorized);
+        (*ourResponse).SetAuthHeader(authType, authName);
         return 1;
     }
     else if (filepath == "Bad URL")

@@ -84,13 +84,9 @@ std::string to_string(HttpStatusCode status_code) {
 }
 
 MethodType string_to_method(const std::string& method_string) {
-  std::string method_string_uppercase;
-  std::transform(method_string.begin(), method_string.end(),
-                 std::back_inserter(method_string_uppercase),
-                 [](char c) { return toupper(c); });
-  if (method_string_uppercase == "GET") {
+  if (method_string == "GET") {
     return MethodType::GET;
-  } else if (method_string_uppercase == "POST") {
+  } else if (method_string == "POST") {
     return MethodType::POST;
   } else {
     throw std::invalid_argument("Unexpected HTTP method");

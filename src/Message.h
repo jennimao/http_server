@@ -153,6 +153,11 @@ class HttpResponse : public HttpMessage {
       SetHeader("Last-Modified", lastModified);
     }
 
+    void SetAuthHeader(std::string authType,std::string authName)
+    {
+      SetHeader("WWW-Authenticate", authType + " realm=" + authName);
+    }
+
     void SetStatusCode(HttpStatusCode status_code) { status_code_ = status_code;}
 
     HttpStatusCode status_code() const { return status_code_; }
