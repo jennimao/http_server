@@ -204,7 +204,7 @@ std::string contentSelection(const HttpRequest& request, HttpResponse* response,
             }
             if (entry.is_regular_file() && entry.path().filename().compare("index.html") == 0) 
             {
-                indexPath = filepath + "/index.html";
+                indexPath = filepath + "index.html";
             }
 
         }
@@ -324,6 +324,7 @@ std::string contentSelection(const HttpRequest& request, HttpResponse* response,
     if(!request.headers()["If-Modified-Since"].empty()) //if there's an if modified since header, it's been parsed
     {
         // Use std::filesystem::last_write_time to get a std::filesystem::file_time_type
+        std::cout << "recognizes header";
         std::__fs::filesystem::file_time_type fileTime = std::__fs::filesystem::last_write_time(toReturn);
         
         if(fileTime.time_since_epoch() < contentCriteria->ifModifiedSince.time_since_epoch())
@@ -344,9 +345,13 @@ std::string contentSelection(const HttpRequest& request, HttpResponse* response,
 
 int noContentRequired(std::string filepath, HttpResponse* ourResponse)
 {
-    if(filepath.contains == "Not modified")
+    if(filepath.find("Not modified") != std::string::npos)
     {
+        std::cout << "not modified\n";
+        std::string actual_filepath = filepath.substr(filepath.find(":") + 1);
         (*ourResponse).SetStatusCode(myHttpServer::HttpStatusCode::NotModified);
+        (*ourResponse).SetLastModified(actual_filepath);
+
         return 1;
     }
     else if (filepath == "NotFound")
@@ -374,6 +379,7 @@ HttpResponse RequestHandlers::GetHandler(const HttpRequest& request)
     std::string root;
     //validate URI
     std::string our_uri = request.uri().path();
+
     if(our_uri[0] != '/' && our_uri[0] != 'h')
     {
         std::cerr << "Bad URL1: " << our_uri[0] << "\n";
@@ -552,7 +558,7 @@ HttpResponse RequestHandlers::GetHandler(const HttpRequest& request)
         {
             return ourResponse;
         }
-        std::cerr << filepath << "\n";
+        std::cerr << "this file" << filepath << "\n";
 
         // check if file is CGI and executable 
         if (isExecutable(filepath)) {

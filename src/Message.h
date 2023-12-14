@@ -143,6 +143,12 @@ class HttpResponse : public HttpMessage {
       }
     }
 
+    void SetLastModified(const std::string& filepath)
+    {
+      std::string lastModified = GetLastModified(filepath);
+      SetHeader("Last-Modified", lastModified);
+    }
+
     void SetStatusCode(HttpStatusCode status_code) { status_code_ = status_code;}
 
     HttpStatusCode status_code() const { return status_code_; }
