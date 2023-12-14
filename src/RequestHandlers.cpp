@@ -35,7 +35,7 @@ struct ContentSelection {
     std::string username;
     std::string password;
 
-        ContentSelection() : formatArray{} {} 
+       ContentSelection() : formatArray{} {} 
 };
 
 void fillInBadResponse(HttpResponse* response)
@@ -185,6 +185,69 @@ std::string contentSelection(const HttpRequest& request, HttpResponse* response,
     std::string mIndexPath;
     std::string toReturn = filepath;
     std::__fs::filesystem::path myFileObj(filepath);
+
+
+    //check accept (assuming static file here)
+    if(!request.headers()["Accept"].empty())
+    {
+        bool filepathValid = false;
+        //see if filepath is valid
+        if(std::__fs::filesystem::exists(filepath))
+        {
+            filepathValid = true;
+        }
+
+        std::cout << "here accept\n";
+        std::cout << "html: " << contentCriteria->formatArray[0] << "text: " << contentCriteria->formatArray[1] << "\n";
+        bool found = false;
+        std::string alternative;
+        for(int i = 0; i < lengthAcceptedFormats; i++)
+        {
+            std::cout << "i: " << i << "\n";
+            if(filepathValid && contentCriteria->formatArray[i] == 1 && filepath.find(acceptedFormatsEndings[i]) != std::string::npos)
+            {
+                found = true;
+                toReturn = filepath;
+                break;
+            }
+            else if(contentCriteria->formatArray[i] == 1)
+            {
+                std::cout << "alternative here";
+                std::cout << "empty val" << alternative.empty() << "\n";
+                if(alternative.empty())
+                {
+                    if(filepath.find('.') != std::string::npos)
+                    {
+                        alternative = filepath.substr(0, filepath.find('.')) + acceptedFormatsEndings[i];
+                    }
+                    else
+                    {
+                        alternative = filepath + acceptedFormatsEndings[i];
+                    }
+                    std::cout << "alternative" << alternative;
+
+                    if(!std::__fs::filesystem::exists(alternative))
+                    {
+                        alternative.clear();
+                    }
+                   
+                }
+            }
+        }
+        if(!found)
+        {
+
+            if (alternative != "")
+            {
+                toReturn = alternative;
+            }
+            else
+            {
+                return "NotFound";
+            } 
+        }
+    }
+
     //first check authorization
     int ret = authorizationCheck(contentCriteria, filepath);
     if(ret != 0)
@@ -228,17 +291,7 @@ std::string contentSelection(const HttpRequest& request, HttpResponse* response,
 
     }
 
-    //check accept (assuming static file here)
-    //if the 
-
-    /* for(int i; i < sizeof(contentCriteria->formatArray)/sizeof(int); i++)
-    {
-        if(contentCriteria->formatArray[i] == 1 && filepath.find(acceptedFormatsEndings[i]) != std::string::npos)
-        {
-
-            break;
-        }
-    } */
+    
     //if the filepath exists, and the suffix is one of the data types the user supports, put it as the to return
     //if not, search for files in the dir that have that name with one of the supported suffixes 
     //if that fails return not found
@@ -531,71 +584,61 @@ HttpResponse RequestHandlers::GetHandler(const HttpRequest& request)
     std::cout << "filepath: " << filepath << "\n";
 
    
-    //ensure the path is valid
-    if(std::__fs::filesystem::exists(filepath)) 
+
+    std::cout << "here1\n";
+
+    // handle load balance query endpoint 
+    if (our_uri == "/load")
     {
-        std::cout << "here1\n";
-
-        // handle load balance query endpoint 
-        if (our_uri == "/load")
-        {
-            int newRequests = 1000;
-            if (newRequests < 0 || newRequests > 100000) {
-                ourResponse.SetStatusCode(HttpStatusCode::ServiceUnavailable); //503
-            }
-            else  {
-                ourResponse.SetStatusCode(HttpStatusCode::Ok); //200
-            }
-
-            // make wrapper function for headers
-            return ourResponse; 
+        int newRequests = 1000;
+        if (newRequests < 0 || newRequests > 100000) {
+            ourResponse.SetStatusCode(HttpStatusCode::ServiceUnavailable); //503
+        }
+        else  {
+            ourResponse.SetStatusCode(HttpStatusCode::Ok); //200
         }
 
+        // make wrapper function for headers
+        return ourResponse; 
+    }
 
-        //select what file to send back based on headers
-        filepath = contentSelection(request, &ourResponse, &contentSelectionCriteria, filepath);
-        if(noContentRequired(filepath, &ourResponse))
-        {
-            return ourResponse;
-        }
-        std::cerr << "this file" << filepath << "\n";
 
-        // check if file is CGI and executable 
-        if (isExecutable(filepath)) {
-            std::cerr << "it's executable " << filepath << "\n";
-            return runExecutable(filepath);
-        }
-
-        //fill in response message
-        //get the file contents into a buffer
-        std::string data;
-        std::string dataChunk;
-        std::ifstream fileData(filepath);
-        while (std::getline (fileData, dataChunk)) {
-            data  = data + dataChunk + "\n";
-        }
-        std::cout << data << "\n";
-        ourResponse.SetContent(data, filepath);
-        ourResponse.SetStatusCode(HttpStatusCode::Ok);
-        std::cout << filepath << "\n";
-        if(filepath.substr(filepath.length() - 5) == ".html")
-        {
-            std::cout << "html" << "\n";
-            ourResponse.SetHeader("Content-Type", "text/html");
-        }
-        else
-        {
-            ourResponse.SetHeader("Content-Type", "text/plain");
-        }
+    //select what file to send back based on headers
+    filepath = contentSelection(request, &ourResponse, &contentSelectionCriteria, filepath); //will catch if filepath is invalid
+    if(noContentRequired(filepath, &ourResponse))
+    {
         return ourResponse;
-       
+    }
+    std::cerr << "this file" << filepath << "\n";
+
+    // check if file is CGI and executable 
+    if (isExecutable(filepath)) {
+        std::cerr << "it's executable " << filepath << "\n";
+        return runExecutable(filepath);
+    }
+
+    //fill in response message
+    //get the file contents into a buffer
+    std::string data;
+    std::string dataChunk;
+    std::ifstream fileData(filepath);
+    while (std::getline (fileData, dataChunk)) {
+        data  = data + dataChunk + "\n";
+    }
+    std::cout << data << "\n";
+    ourResponse.SetContent(data, filepath);
+    ourResponse.SetStatusCode(HttpStatusCode::Ok);
+    std::cout << filepath << "\n";
+    if(filepath.substr(filepath.length() - 5) == ".html")
+    {
+        std::cout << "html" << "\n";
+        ourResponse.SetHeader("Content-Type", "text/html");
     }
     else
     {
-        std::cerr << "Bad URL (filepath): " << filepath << "\n";
-        fillInBadResponse(&ourResponse);
-        return ourResponse;
+        ourResponse.SetHeader("Content-Type", "text/plain");
     }
+    return ourResponse;
 
 
     }
