@@ -38,11 +38,6 @@ struct ContentSelection {
        ContentSelection() : formatArray{} {} 
 };
 
-void fillInBadResponse(HttpResponse* response)
-{
-    return; 
-}
-
 
 ////////////////////////////////////////////////////////////
 // Config file parsing and virtual hosts
@@ -254,7 +249,7 @@ int parseAuthFile(std::string dirToCheck, ContentSelection* contentCriteria) //p
     std::string user;
     std::ifstream fileData(dirToCheck + "/.htaccess");
     while (std::getline (fileData, dataChunk)) {
-        std::cout << "datachunk: " << dataChunk << "\n";
+        //std::cout << "datachunk: " << dataChunk << "\n";
         if(dataChunk.find("User") != std::string::npos){
             user = dataChunk.substr(5, dataChunk.length() - 5 - 1);
         }
@@ -351,75 +346,6 @@ std::string contentSelection(const HttpRequest& request, HttpResponse* response,
     std::string toReturn = filepath;
     std::__fs::filesystem::path myFileObj(filepath);
 
-
-    //check accept (assuming static file here)
-    if(!request.headers()["Accept"].empty())
-    {
-        bool filepathValid = false;
-        //see if filepath is valid
-        if(std::__fs::filesystem::exists(filepath))
-        {
-            filepathValid = true;
-        }
-
-        std::cout << "here accept\n";
-        std::cout << "html: " << contentCriteria->formatArray[0] << "text: " << contentCriteria->formatArray[1] << "\n";
-        bool found = false;
-        std::string alternative;
-        for(int i = 0; i < lengthAcceptedFormats; i++)
-        {
-            std::cout << "i: " << i << "\n";
-            if(filepathValid && contentCriteria->formatArray[i] == 1 && filepath.find(acceptedFormatsEndings[i]) != std::string::npos)
-            {
-                found = true;
-                toReturn = filepath;
-                break;
-            }
-            else if(contentCriteria->formatArray[i] == 1)
-            {
-                std::cout << "alternative here";
-                std::cout << "empty val" << alternative.empty() << "\n";
-                if(alternative.empty())
-                {
-                    if(filepath.find('.') != std::string::npos)
-                    {
-                        alternative = filepath.substr(0, filepath.find('.')) + acceptedFormatsEndings[i];
-                    }
-                    else
-                    {
-                        alternative = filepath + acceptedFormatsEndings[i];
-                    }
-                    std::cout << "alternative" << alternative;
-
-                    if(!std::__fs::filesystem::exists(alternative))
-                    {
-                        alternative.clear();
-                    }
-                   
-                }
-            }
-        }
-        if(!found)
-        {
-
-            if (alternative != "")
-            {
-                toReturn = alternative;
-            }
-            else
-            {
-                return "NotFound";
-            } 
-        }
-    }
-
-    //first check authorization
-    int ret = authorizationCheck(contentCriteria, filepath);
-    if(ret != 0)
-    {
-        return "Unauthorized";
-    }
-
     //if the path does not end in a file
     if(std::__fs::filesystem::is_directory(filepath))
     {
@@ -456,19 +382,78 @@ std::string contentSelection(const HttpRequest& request, HttpResponse* response,
 
     }
 
-    
+    //check accept (assuming static file here)
     //if the filepath exists, and the suffix is one of the data types the user supports, put it as the to return
     //if not, search for files in the dir that have that name with one of the supported suffixes 
     //if that fails return not found
+    if(!request.headers()["Accept"].empty())
+    {
+        bool filepathValid = false;
+        //see if filepath is valid
+        if(std::__fs::filesystem::exists(toReturn))
+        {
+            filepathValid = true;
+        }
+
+        //std::cout << "here accept" << request.headers()["Accept"] << "\n";
+        
+        //std::cout << "html: " << contentCriteria->formatArray[0] << "text: " << contentCriteria->formatArray[1] << "\n";
+        bool found = false;
+        std::string alternative;
+        for(int i = 0; i < lengthAcceptedFormats; i++)
+        {
+            //std::cout << "i: " << i << "\n";
+            if(filepathValid && contentCriteria->formatArray[i] == 1 && toReturn.find(acceptedFormatsEndings[i]) != std::string::npos)
+            {
+                found = true;
+                break;
+            }
+            else if(contentCriteria->formatArray[i] == 1)
+            {
+                //std::cout << "alternative here";
+                //std::cout << "empty val" << alternative.empty() << "\n";
+                if(alternative.empty())
+                {
+                    if(toReturn.find('.') != std::string::npos)
+                    {
+                        alternative = toReturn.substr(0, toReturn.find('.')) + acceptedFormatsEndings[i];
+                    }
+                    else
+                    {
+                        alternative = toReturn + acceptedFormatsEndings[i];
+                    }
+                    //std::cout << "alternative" << alternative;
+
+                    if(!std::__fs::filesystem::exists(alternative))
+                    {
+                        alternative.clear();
+                    }
+                   
+                }
+            }
+        }
+        if(!found)
+        {
+
+            if (alternative != "")
+            {
+                toReturn = alternative;
+            }
+            else
+            {
+                return "NotFound";
+            } 
+        }
+    }
 
     //check user agent
-    std::cout << "userAgent " << contentCriteria->userAgent << "\n";
+    //std::cout << "userAgent " << contentCriteria->userAgent << "\n";
     std::__fs::filesystem::path myNewFileObj(toReturn);
     if(contentCriteria->userAgent != -1)
     {
         if(contentCriteria->userAgent == 1) //mobile
         {
-            std::cout << "he's a mobile boi\n";
+            //std::cout << "he's a mobile boi\n";
             if(myNewFileObj.filename().string().find("_m") == std::string::npos) //if they requested a non-mobile file
             {
                 //look for a mobile version
@@ -483,20 +468,20 @@ std::string contentSelection(const HttpRequest& request, HttpResponse* response,
                 {
                     newName = myNewFileObj.filename().string().substr(0, hasSuffix) + "_m" + myNewFileObj.filename().string().substr(hasSuffix, myFileObj.filename().string().length());
                 }
-                std::cout << "filename : " << myNewFileObj.filename() << "\n";
-                std::cout << "newName: " << newName << "\n";
+                //std::cout << "filename : " << myNewFileObj.filename() << "\n";
+                //std::cout << "newName: " << newName << "\n";
 
                 boost::to_lower(newName);
 
                 for (const auto& entry : std::__fs::filesystem::directory_iterator(myFileObj.parent_path())) 
                 {
-                    std::cout << "files " << entry.path().filename() << "\n";
+                    //std::cout << "files " << entry.path().filename() << "\n";
                     std::string currentFile = entry.path().filename();
                     boost:to_lower(currentFile);
 
                     if (entry.is_regular_file() && currentFile.compare(newName) == 0) 
                     {
-                        std::cout << "sucess!";
+                        //std::cout << "sucess!";
                         toReturn = myFileObj.remove_filename().string() + "/" + newName;
                     }
 
@@ -538,11 +523,14 @@ std::string contentSelection(const HttpRequest& request, HttpResponse* response,
             }
         }
     }
-
+    
+    //check ifmodifiedsince 
+    //if has been modified, continue
+    //if not been modified, return 304 not modified
     if(!request.headers()["If-Modified-Since"].empty()) //if there's an if modified since header, it's been parsed
     {
         // Use std::filesystem::last_write_time to get a std::filesystem::file_time_type
-        std::cout << "recognizes header";
+        //std::cout << "recognizes header";
         std::__fs::filesystem::file_time_type fileTime = std::__fs::filesystem::last_write_time(toReturn);
         
         if(fileTime.time_since_epoch() < contentCriteria->ifModifiedSince.time_since_epoch())
@@ -552,15 +540,20 @@ std::string contentSelection(const HttpRequest& request, HttpResponse* response,
         }
     } 
 
+    //check authorization
+    int ret = authorizationCheck(contentCriteria, filepath);
+    if(ret != 0)
+    {
+        return "Unauthorized";
+    }
+
     return toReturn;
 
-    //check ifmodifiedsince 
-    //if has been modified, continue
-    //if not been modified, return 304 not modified
+    
 
 }
 
-int noContentRequired(std::string filepath, HttpResponse* ourResponse)
+int fillInErrorResponse(std::string filepath, HttpResponse* ourResponse)
 {
     if(filepath.find("Not modified") != std::string::npos)
     {
@@ -580,6 +573,10 @@ int noContentRequired(std::string filepath, HttpResponse* ourResponse)
     {
         (*ourResponse).SetStatusCode(myHttpServer::HttpStatusCode::Unauthorized);
         return 1;
+    }
+    else if (filepath == "Bad URL")
+    {
+        (*ourResponse).SetStatusCode(myHttpServer::HttpStatusCode::Forbidden);
     }
     return 0;
 }
@@ -604,18 +601,18 @@ HttpResponse RequestHandlers::GetHandler(const HttpRequest& request)
     if(our_uri[0] != '/' && our_uri[0] != 'h')
     {
         std::cerr << "Bad URL1: " << our_uri[0] << "\n";
-        fillInBadResponse(&ourResponse);
+        fillInErrorResponse("Bad URL", &ourResponse);
         return ourResponse;
     }
     else if(our_uri.find("..") != std::string::npos)
     {
         std::cerr << "Bad URL2:" << our_uri << "\n";
-        fillInBadResponse(&ourResponse);
+        fillInErrorResponse("Bad URL", &ourResponse);
         return ourResponse;
     }
 
     //Virtual Host
-    std::cout << "host: " << request.uri().host() << "\n";
+    //std::cout << "host: " << request.uri().host() << "\n";
     if(virtualHosts.find(request.headers()["Host"]) != virtualHosts.end())
     {
         root = virtualHosts[request.headers()["Host"]];
@@ -651,6 +648,11 @@ HttpResponse RequestHandlers::GetHandler(const HttpRequest& request)
                //add plain to some sort of content generation array
                contentSelectionCriteria.formatArray[1] = 1;
            }
+           if (token.compare("*/*") == 0)
+           {
+                contentSelectionCriteria.formatArray[0] = 1;
+                contentSelectionCriteria.formatArray[1] = 1;
+           }
            //if its not one of the type we handle, ignore
         }
 
@@ -661,7 +663,7 @@ HttpResponse RequestHandlers::GetHandler(const HttpRequest& request)
     {
         //right now we only handle mobile user or not
         std::string user_agent = request.headers()["User-Agent"];
-        std::cout << "user_agent str: " << user_agent << "\n";
+        //std::cout << "user_agent str: " << user_agent << "\n";
         if(user_agent.find("Mobile") != std::string::npos || 
            user_agent.find("Andriod") != std::string::npos || 
            user_agent.find("iOS") != std::string::npos || 
@@ -717,7 +719,7 @@ HttpResponse RequestHandlers::GetHandler(const HttpRequest& request)
     {
         //check that it is the basic form
         std::string authorization_string = request.headers()["Authorization"];
-        std::cout << "Auth: " << request.headers()["Authorization"] << "\n";
+        //std::cout << "Auth: " << request.headers()["Authorization"] << "\n";
         if (authorization_string.substr(0, 5).compare("Basic") != 0)
         {
             std::cerr << "Unsupported authentification\n";
@@ -749,11 +751,11 @@ HttpResponse RequestHandlers::GetHandler(const HttpRequest& request)
 
     //construct a filepath
     std::string filepath = root + our_uri;
-    std::cout << "filepath: " << filepath << "\n";
+    //std::cout << "filepath1: " << filepath << "\n";
 
    
 
-    std::cout << "here1\n";
+    //std::cout << "here1\n";
 
     // handle load balance query endpoint 
     if (our_uri == "/load")
@@ -772,11 +774,11 @@ HttpResponse RequestHandlers::GetHandler(const HttpRequest& request)
 
     //select what file to send back based on headers
     filepath = contentSelection(request, &ourResponse, &contentSelectionCriteria, filepath); //will catch if filepath is invalid
-    if(noContentRequired(filepath, &ourResponse))
+    if(fillInErrorResponse(filepath, &ourResponse))
     {
         return ourResponse;
     }
-    std::cerr << "this file" << filepath << "\n";
+    //std::cerr << "this file" << filepath << "\n";
 
     // check if file is CGI and executable 
     if (isExecutable(filepath)) {
@@ -793,13 +795,13 @@ HttpResponse RequestHandlers::GetHandler(const HttpRequest& request)
     while (std::getline (fileData, dataChunk)) {
         data  = data + dataChunk + "\n";
     }
-    std::cout << data << "\n";
+    //std::cout << data << "\n";
     ourResponse.SetContent(data, filepath);
     ourResponse.SetStatusCode(HttpStatusCode::Ok);
-    std::cout << filepath << "\n";
+    //std::cout << filepath << "\n";
     if(filepath.substr(filepath.length() - 5) == ".html")
     {
-        std::cout << "html" << "\n";
+        //std::cout << "html" << "\n";
         ourResponse.SetHeader("Content-Type", "text/html");
     }
     else
@@ -868,6 +870,12 @@ void RequestHandlers::RegisterPostHandlers(HttpServer& server) {
         
         std::string filepath = root + our_uri;
         std::cout << "filepath: " << filepath << "\n";
+
+
+        // Get the path to the CGI script for the requested URI
+        //std::string cgiScriptPath = request.uri().path();
+        // TOOD: need to replace this with the request path -- have to start at root
+        std::string cgiScriptPath = "../cgi-bin/script_cgi.pl";
 
         // TODO: check if the cgiScriptPath is in the list of existing resources
         if(!std::__fs::filesystem::exists(filepath)) {

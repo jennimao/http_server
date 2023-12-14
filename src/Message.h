@@ -17,6 +17,7 @@ enum class MethodType {
 
 //we only support HTTP/1.1
 enum class HttpVersion {
+  HTTP_1_0 = 10,
   HTTP_1_1 = 11,
 };
 
@@ -73,7 +74,10 @@ class HttpMessage {
       content_ = std::move(content);
       SetContentLength(content_);
     }
-    
+    void SetVersion(HttpVersion version)
+    {
+      version_ = version;
+    }
     HttpVersion version() const { return version_; }
     std::string header(const std::string& key) const {
       if (headers_.count(key) > 0) return headers_.at(key);

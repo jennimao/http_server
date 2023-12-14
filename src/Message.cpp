@@ -38,6 +38,8 @@ std::string to_string(HttpVersion version) {
   switch (version) {
     case HttpVersion::HTTP_1_1:
       return "HTTP/1.1";
+    case HttpVersion::HTTP_1_0:
+      return "HTTP/1.0";
     default:
       return std::string();
   }
@@ -102,6 +104,10 @@ HttpVersion string_to_version(const std::string& version_string) {
 
   if (version_string_uppercase == "HTTP/1.1") {
     return HttpVersion::HTTP_1_1;
+  }
+  else if (version_string_uppercase == "HTTP/1.0")
+  {
+    return HttpVersion::HTTP_1_0;
   } else {
     throw std::invalid_argument("Unexpected HTTP version");
   }
@@ -131,7 +137,7 @@ std::string to_string(const HttpResponse& response, bool send_content) {
     oss << p.first << ": " << p.second << "\r\n";
   oss << "\r\n";
   if (send_content) oss << response.content();
-  std::cout << oss.str(); // Print the string to stdout
+  //std::cout << oss.str(); // Print the string to stdout
   return oss.str();
 }
 
@@ -169,7 +175,9 @@ HttpRequest string_to_request(const std::string& request_string) {
   }
   request.SetMethod(string_to_method(method));
   request.SetUri(Uri(path));
+  request.SetVersion(string_to_version(version));
   if (string_to_version(version) != request.version()) {
+    //std::cout << "version:" << version << "other:" << to_string(request.version()) << "\n";
     throw std::logic_error("HTTP version not supported");
   }
 

@@ -171,7 +171,7 @@ void HttpServer::WorkerThread(int workerID, int listeningSocket) {
                     clientData->fd = clientSocket;
                     ControlKqueueEvent(kq, EV_ADD, clientSocket, EVFILT_READ, clientData);
 
-                    std::cout << "Worker " << workerID << " accepted connection on socket " << clientSocket << std::endl;
+                    //std::cout << "Worker " << workerID << " accepted connection on socket " << clientSocket << std::endl;
                 }
             }
             else {

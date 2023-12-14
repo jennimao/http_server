@@ -74,8 +74,8 @@ class HttpServer {
 
     private:
         static constexpr int kBacklogSize = 1000;
-        static constexpr int kMaxConnections = 10000;
-        static constexpr int kMaxEvents = 50;
+        static constexpr int kMaxConnections = 500;
+        static constexpr int kMaxEvents = 100;
         static constexpr int kThreadPoolSize = 4;
 
         std::string host_;
