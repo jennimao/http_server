@@ -24,9 +24,9 @@ namespace fs = std::__fs::filesystem;
 
 namespace myHttpServer {
 std::unordered_map<std::string, std::string> virtualHosts; 
-std::string const acceptedFormats[] = {"text/html", "text/plain"};
-std::string const acceptedFormatsEndings[] = {".html", ".txt"};
-size_t const lengthAcceptedFormats = 2;
+std::string const acceptedFormats[] = {"text/html", "text/plain", "*/*"};
+std::string const acceptedFormatsEndings[] = {".html", ".txt", ".pl"};
+size_t const lengthAcceptedFormats = 3;
 struct ContentSelection {
     int formatArray[lengthAcceptedFormats];
     int userAgent = -1; //1 is mobile 0 is computer
@@ -393,6 +393,7 @@ std::string contentSelection(const HttpRequest& request, HttpResponse* response,
         if(std::__fs::filesystem::exists(toReturn))
         {
             filepathValid = true;
+            std::cout << "filepath valid\n";
         }
 
         //std::cout << "here accept" << request.headers()["Accept"] << "\n";
@@ -403,6 +404,8 @@ std::string contentSelection(const HttpRequest& request, HttpResponse* response,
         for(int i = 0; i < lengthAcceptedFormats; i++)
         {
             //std::cout << "i: " << i << "\n";
+            std::cout << "content criteria " << contentCriteria->formatArray[i] << "\n";
+            std::cout << "accepted formats endings " << toReturn.find(acceptedFormatsEndings[i]) << "\n";
             if(filepathValid && contentCriteria->formatArray[i] == 1 && toReturn.find(acceptedFormatsEndings[i]) != std::string::npos)
             {
                 found = true;
@@ -434,7 +437,6 @@ std::string contentSelection(const HttpRequest& request, HttpResponse* response,
         }
         if(!found)
         {
-
             if (alternative != "")
             {
                 toReturn = alternative;
@@ -577,6 +579,7 @@ int fillInErrorResponse(std::string filepath, HttpResponse* ourResponse)
     else if (filepath == "Bad URL")
     {
         (*ourResponse).SetStatusCode(myHttpServer::HttpStatusCode::Forbidden);
+        return 1; 
     }
     return 0;
 }
@@ -625,7 +628,7 @@ HttpResponse RequestHandlers::GetHandler(const HttpRequest& request)
     //Accept Header
     if(!request.headers()["Accept"].empty()) //request.headers().find("Accept") != request.headers().end())
     {
-        //parse accept, we only handle text/html, text/plain for now
+        //parse accept, we only handle text/html, text/plain, and wildcard for now
         std::string values = request.headers()["Accept"];
         std::stringstream ss(values);
 
@@ -650,8 +653,8 @@ HttpResponse RequestHandlers::GetHandler(const HttpRequest& request)
            }
            if (token.compare("*/*") == 0)
            {
-                contentSelectionCriteria.formatArray[0] = 1;
-                contentSelectionCriteria.formatArray[1] = 1;
+                std::cout << "wildcard type found\n";
+                contentSelectionCriteria.formatArray[2] = 1;
            }
            //if its not one of the type we handle, ignore
         }
@@ -774,15 +777,17 @@ HttpResponse RequestHandlers::GetHandler(const HttpRequest& request)
 
     //select what file to send back based on headers
     filepath = contentSelection(request, &ourResponse, &contentSelectionCriteria, filepath); //will catch if filepath is invalid
+    std::cout << filepath;
     if(fillInErrorResponse(filepath, &ourResponse))
     {
+        std::cout << "error response\n";
         return ourResponse;
     }
     //std::cerr << "this file" << filepath << "\n";
 
     // check if file is CGI and executable 
     if (isExecutable(filepath)) {
-        std::cerr << "it's executable " << filepath << "\n";
+        std::cout << "it's executable " << filepath << "\n";
         return runGetExecutable(filepath);
     }
 
