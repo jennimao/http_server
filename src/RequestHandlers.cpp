@@ -163,7 +163,7 @@ HttpResponse runPostExecutable(const std::string& filepath, const std::string& i
     setenv("QUERY_STRING", command.c_str(), 1);
     setenv("REMOTE_ADDR", "127.0.0.1", 1); 
     setenv("SERVER_NAME", "localhost", 1); 
-    setenv("SERVER_PORT", "8080", 1); 
+    setenv("SERVER_PORT", "6789", 1); 
     setenv("SERVER_SOFTWARE", "HTTP/1.1", 1); 
 
     int inputPipe[2];
@@ -218,6 +218,8 @@ HttpResponse runPostExecutable(const std::string& filepath, const std::string& i
         close(outputPipe[0]);
     
         std::cout << "Captured CGI Output:\n" << output << "\n";
+
+        // should i add a kqueue event here?
 
         // Return the CGI script's output as an HTTP response
         HttpResponse response(HttpStatusCode::Ok);
@@ -393,58 +395,65 @@ std::string contentSelection(const HttpRequest& request, HttpResponse* response,
         if(std::__fs::filesystem::exists(toReturn))
         {
             filepathValid = true;
-            std::cout << "filepath valid\n";
+            //std::cout << "filepath valid\n";
         }
 
-        //std::cout << "here accept" << request.headers()["Accept"] << "\n";
-        
-        //std::cout << "html: " << contentCriteria->formatArray[0] << "text: " << contentCriteria->formatArray[1] << "\n";
+        std::cout << "filepath " << toReturn << "\n";
+
         bool found = false;
         std::string alternative;
-        for(int i = 0; i < lengthAcceptedFormats; i++)
-        {
-            //std::cout << "i: " << i << "\n";
-            std::cout << "content criteria " << contentCriteria->formatArray[i] << "\n";
-            std::cout << "accepted formats endings " << toReturn.find(acceptedFormatsEndings[i]) << "\n";
-            if(filepathValid && contentCriteria->formatArray[i] == 1 && toReturn.find(acceptedFormatsEndings[i]) != std::string::npos)
-            {
-                found = true;
-                break;
-            }
-            else if(contentCriteria->formatArray[i] == 1)
-            {
-                //std::cout << "alternative here";
-                //std::cout << "empty val" << alternative.empty() << "\n";
-                if(alternative.empty())
-                {
-                    if(toReturn.find('.') != std::string::npos)
-                    {
-                        alternative = toReturn.substr(0, toReturn.find('.')) + acceptedFormatsEndings[i];
-                    }
-                    else
-                    {
-                        alternative = toReturn + acceptedFormatsEndings[i];
-                    }
-                    //std::cout << "alternative" << alternative;
 
-                    if(!std::__fs::filesystem::exists(alternative))
+        if (filepathValid && contentCriteria->formatArray[2] != 1) {
+            //std::cout << "here accept" << request.headers()["Accept"] << "\n";
+        
+            //std::cout << "html: " << contentCriteria->formatArray[0] << "text: " << contentCriteria->formatArray[1] << "\n";
+            for(int i = 0; i < lengthAcceptedFormats; i++)
+            {
+                //std::cout << "i: " << i << "\n";
+                //std::cout << "content criteria " << contentCriteria->formatArray[i] << "\n";
+                //std::cout << "accepted formats endings " << toReturn.find(acceptedFormatsEndings[i]) << "\n";
+                if(filepathValid && contentCriteria->formatArray[i] == 1 && toReturn.find(acceptedFormatsEndings[i]) != std::string::npos)
+                {
+                    found = true;
+                    break;
+                }
+                else if(contentCriteria->formatArray[i] == 1)
+                {
+                    //std::cout << "alternative here";
+                    //std::cout << "empty val" << alternative.empty() << "\n";
+                    if(alternative.empty())
                     {
-                        alternative.clear();
+                        if(toReturn.find('.') != std::string::npos)
+                        {
+                            alternative = toReturn.substr(0, toReturn.find('.')) + acceptedFormatsEndings[i];
+                        }
+                        else
+                        {
+                            alternative = toReturn + acceptedFormatsEndings[i];
+                        }
+                        //std::cout << "alternative" << alternative;
+
+                        if(!std::__fs::filesystem::exists(alternative))
+                        {
+                            alternative.clear();
+                        }
                     }
-                   
                 }
             }
-        }
-        if(!found)
-        {
-            if (alternative != "")
+            if(!found)
             {
-                toReturn = alternative;
+                if (alternative != "")
+                {
+                    toReturn = alternative;
+                }
+                else
+                {
+                    return "NotFound";
+                } 
             }
-            else
-            {
-                return "NotFound";
-            } 
+        }
+        else if (!filepathValid) {
+            return "NotFound";
         }
     }
 
@@ -653,7 +662,7 @@ HttpResponse RequestHandlers::GetHandler(const HttpRequest& request)
            }
            if (token.compare("*/*") == 0)
            {
-                std::cout << "wildcard type found\n";
+                //std::cout << "wildcard type found\n";
                 contentSelectionCriteria.formatArray[2] = 1;
            }
            //if its not one of the type we handle, ignore

@@ -47,7 +47,7 @@ void ensure_enough_resource(int resource, std::uint32_t soft_limit, std::uint32_
 
 int main(int argc, char* argv[]) {
   std::string host = "localhost";
-  int port = 8080;
+  int port = 6789;
   int nselectLoops;
   std::string configFileName;
   
@@ -117,7 +117,7 @@ int main(int argc, char* argv[]) {
 
     std::cout << "Starting the web server.." << std::endl;
     server.Start();
-    std::cout << "Server listening on " << host << ":" << port << std::endl;
+    std::cout << " on " << host << ":" << port << std::endl;
 
     std::cout << "Enter [quit] to stop the server" << std::endl;
     std::string command;

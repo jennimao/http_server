@@ -18,6 +18,7 @@
 #include <iostream>
 #include <cerrno>
 #include <sys/stat.h>
+#include <boost/algorithm/string.hpp>
 
 namespace fs = std::filesystem;
 
@@ -26,9 +27,9 @@ namespace myHttpServer {
 std::string to_string(MethodType method) {
   switch (method) {
     case MethodType::GET:
-      return "GET";
+        return "GET";
     case MethodType::POST:
-      return "POST";
+        return "POST";
     default:
       return std::string();
   }

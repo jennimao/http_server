@@ -302,6 +302,7 @@ void HttpServer::HandleKqueueEvent(int kq, EventData *data, int filter) {
                 request = new EventData();
                 request->fd = fd;
                 ControlKqueueEvent(kq, EV_DELETE, fd, EVFILT_WRITE, response);
+                //ControlKqueueEvent(kq, EV_ADD, fd, EVFILT_READ, request);
                 close(fd);
                 delete response; 
             }
@@ -370,8 +371,9 @@ HttpResponse HttpServer::HandleHttpRequest(const HttpRequest &request) {
 
 void HttpServer::ControlKqueueEvent(int kq, int op, int fd, std::uint32_t events, void *data) {
     struct kevent kev; 
+    // std::cout << "op " << op << "\n";
     EV_SET(&kev, fd, events, EV_ADD, 0, 0, data);
-
+    
     if (kevent(kq, &kev, 1, NULL, 0, NULL) == -1) {
         if (op == EV_DELETE && errno == ENOENT) {
             // ENOENT = non existent event 
