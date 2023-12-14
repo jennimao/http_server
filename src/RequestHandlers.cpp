@@ -715,15 +715,19 @@ HttpResponse RequestHandlers::GetHandler(const HttpRequest& request)
     if(!request.headers()["Connection"].empty()) //request.headers().find("Connection") != request.headers().end())
     {
         std::vector<std::string> connectionAcceptedValues = {"close", "keep-alive"};
-        if(request.headers()["Connection"].compare(connectionAcceptedValues[0]))
+        if(request.headers()["Connection"].find(connectionAcceptedValues[0]) != std::string::npos)
         {
+            std::cout << "CLOSE HEADER" << "\n";
             //set some overarching connection var, this can't be just achieved in the response
             contentSelectionCriteria.connection = 0;
+            ourResponse.SetKeepAlive(false);
         }
-        else if (request.headers()["Connection"].compare(connectionAcceptedValues[1]))
+        else if (request.headers()["Connection"].find(connectionAcceptedValues[1]) != std::string::npos)
         {
+            std::cout << "KEEP ALIVE HEADER" << "\n";
             //set some overarching connection var also
             contentSelectionCriteria.connection = 1;
+            ourResponse.SetKeepAlive(true);
         }
 
     }

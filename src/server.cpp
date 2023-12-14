@@ -170,7 +170,6 @@ void HttpServer::WorkerThread(int workerID, int listeningSocket) {
                     clientData = new EventData();
                     clientData->fd = clientSocket;
                     ControlKqueueEvent(kq, EV_ADD, clientSocket, EVFILT_READ, clientData);
-                    ControlKqueueEvent(kq, EV_ADD, clientSocket, EVFILT_WRITE, clientData);
                     //std::cout << "Worker " << workerID << " accepted connection on socket " << clientSocket << std::endl;
                 }
             }
@@ -193,7 +192,7 @@ void HttpServer::WorkerThread(int workerID, int listeningSocket) {
                     // handle unexpected by removing the event 
                     ControlKqueueEvent(kq, EV_DELETE, data->fd, current_event.filter);
                     close(data->fd);
-                    delete data; 
+                    //delete data; 
                 }
 
             }
@@ -264,8 +263,8 @@ void HttpServer::HandleKqueueEvent(int kq, EventData *data, int filter) {
             response->fd = fd;
             HandleHttpData(*request, response); 
             std::cout << "http data is being handled " << request << "\n";
-            request->length = send(fd, response->buffer + response->cursor, response->length, 0);
-            
+            send(fd, response->buffer + response->cursor, response->length, 0);
+            ControlKqueueEvent(kq, EV_ADD, fd, EVFILT_WRITE, response);
             //ControlKqueueEvent(kq, EV_ADD, fd, EVFILT_WRITE, new EventData()); // write response to client  
             //delete request; 
         } 
@@ -294,11 +293,21 @@ void HttpServer::HandleKqueueEvent(int kq, EventData *data, int filter) {
         //response = data;
         // send chunked response 
         //ssize_t byte_count = send(fd, response->buffer + response->cursor, response->length, 0);
+        if(!data->keepAlive)
+        {
+            delete data;
+            close(fd);
+        }
+        else {
+            std::cout << "ITS ALIVE" << "\n";
+        }
+        
+        
 
-        if (request->length > 0) {
+        if (1) {
             //ControlKqueueEvent(kq, EV_DELETE, fd, EVFILT_WRITE, NULL);
             //ControlKqueueEvent(kq, EV_DELETE, fd, EVFILT_READ, NULL);
-            //close(fd);
+            
             // there are still bytes to write
             /*if (1000 < response->length) {  
                 response->cursor += 1;
@@ -355,9 +364,13 @@ void HttpServer::HandleHttpData(const EventData &raw_request, EventData *raw_res
     }
 
     // set response to write to client
+    
     response_string = to_string(http_response, true); //CHANGE
     memcpy(raw_response->buffer, response_string.c_str(), kMaxBufferSize);
     raw_response->length = response_string.length();
+    raw_response->keepAlive = http_response.GetKeepAlive();
+    std::cout << "response keep alive " << raw_response->keepAlive << "\n";
+    std::cout << "get keep alive " << http_response.GetKeepAlive() << "\n";
 }
 
 
@@ -390,7 +403,7 @@ void HttpServer::ControlKqueueEvent(int kq, int op, int fd, std::uint32_t events
 
     if (op == 2) {
         EV_SET(&kev, fd, events, EV_DELETE, 0, 0, data);
-        return; 
+        //return; 
     } 
     else {
         EV_SET(&kev, fd, events, EV_ADD | EV_CLEAR, 0, 0, data);

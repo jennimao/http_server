@@ -154,6 +154,8 @@ class HttpResponse : public HttpMessage {
     }
 
     void SetStatusCode(HttpStatusCode status_code) { status_code_ = status_code;}
+    void SetKeepAlive(bool keepAlive) { keepAlive_ = keepAlive; }
+    bool GetKeepAlive() { return keepAlive_; }
 
     HttpStatusCode status_code() const { return status_code_; }
 
@@ -165,6 +167,7 @@ class HttpResponse : public HttpMessage {
     std::string GetCurrentDate();
     std::string GetContentType(const std::string& content);
     std::string GetLastModified(const std::string& content);
+    bool keepAlive_ = false;
   };
 
 // Utility functions to convert HTTP message objects to string and vice versa

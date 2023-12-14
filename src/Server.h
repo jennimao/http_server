@@ -31,6 +31,7 @@ struct EventData {
   size_t length;
   size_t cursor;
   char buffer[kMaxBufferSize];
+  bool keepAlive;
 };
 
 
