@@ -268,31 +268,13 @@ void HttpServer::HandleKqueueEvent(int kq, EventData *data, int filter) {
             //ControlKqueueEvent(kq, EV_ADD, fd, EVFILT_WRITE, new EventData()); // write response to client  
             //delete request; 
         } 
-        // client has closed connection
-        else if (byte_count == 0) {  
-            //ControlKqueueEvent(kq, EV_DELETE, fd, EVFILT_READ, nullptr);
-            //close(fd);
-            //delete request; 
-        } 
-        else {
-            if (errno == EAGAIN || errno == EWOULDBLOCK) {  // retry
-                //request->fd = fd;
-                //ControlKqueueEvent(kq, EV_ADD, fd, EVFILT_READ, request);
-            } 
-            else {  // other error
-                //ControlKqueueEvent(kq, EV_DELETE, fd, EVFILT_READ, nullptr);
-                //ControlKqueueEvent(kq, EV_DELETE, fd, EVFILT_WRITE, nullptr);
-                //close(fd);
-                //delete request;
-            }
-        }
     } 
     // write event 
     else if (filter == EVFILT_WRITE) {
         std::cout << "write " << "\n";
-        //response = data;
-        // send chunked response 
-        //ssize_t byte_count = send(fd, response->buffer + response->cursor, response->length, 0);
+        // response = data;
+        // TODO: implement chunked response 
+        // ssize_t byte_count = send(fd, response->buffer + response->cursor, response->length, 0);
         if(!data->keepAlive)
         {
             delete data;
@@ -300,43 +282,6 @@ void HttpServer::HandleKqueueEvent(int kq, EventData *data, int filter) {
         }
         else {
             std::cout << "ITS ALIVE" << "\n";
-        }
-        
-        
-
-        if (1) {
-            //ControlKqueueEvent(kq, EV_DELETE, fd, EVFILT_WRITE, NULL);
-            //ControlKqueueEvent(kq, EV_DELETE, fd, EVFILT_READ, NULL);
-            
-            // there are still bytes to write
-            /*if (1000 < response->length) {  
-                response->cursor += 1;
-                response->length -= 1;
-                //ControlKqueueEvent(kq, EV_ADD, fd, EVFILT_WRITE, response); // change event to write 
-            } 
-            // the entire message has been written
-            else {   
-                // TODO: implement keep alive functionality 
-                //request = new EventData();
-                //request->fd = fd;
-                ControlKqueueEvent(kq, EV_DELETE, fd, EVFILT_WRITE, response);
-                ControlKqueueEvent(kq, EV_DELETE, fd, EVFILT_READ, response);
-                close(fd);
-                //ControlKqueueEvent(kq, EV_ADD, fd, EVFILT_READ, request);
-                //close(fd);
-                //delete response; 
-            }*/
-        } 
-        else {
-            if (errno == EAGAIN || errno == EWOULDBLOCK) {  // retry
-                //ControlKqueueEvent(kq, EV_ADD, fd, EVFILT_WRITE, response);
-            } 
-            else {  // other error
-                //ControlKqueueEvent(kq, EV_ADD, fd, EVFILT_READ, nullptr);
-                //ControlKqueueEvent(kq, EV_DELETE, fd, EVFILT_WRITE, nullptr);
-                //close(fd);
-                //delete response; 
-            }
         }
     }
 }
