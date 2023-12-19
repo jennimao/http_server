@@ -170,7 +170,6 @@ void HttpServer::WorkerThread(int workerID, int listeningSocket) {
                     clientData = new EventData();
                     clientData->fd = clientSocket;
                     ControlKqueueEvent(kq, EV_ADD, clientSocket, EVFILT_READ, clientData);
-
                     //std::cout << "Worker " << workerID << " accepted connection on socket " << clientSocket << std::endl;
                 }
             }
@@ -193,7 +192,7 @@ void HttpServer::WorkerThread(int workerID, int listeningSocket) {
                     // handle unexpected by removing the event 
                     ControlKqueueEvent(kq, EV_DELETE, data->fd, current_event.filter);
                     close(data->fd);
-                    delete data; 
+                    //delete data; 
                 }
 
             }
@@ -240,8 +239,8 @@ void HttpServer::ProcessEvents(int worker_id) {
             else {
                 log("unexpected event");
                 // handle unexpected by removing the event 
-                ControlKqueueEvent(kq, EV_DELETE, data->fd, current_event.filter);
-                close(data->fd);
+                //ControlKqueueEvent(kq, EV_DELETE, data->fd, current_event.filter);
+                //close(data->fd);
                 delete data; 
             }
         }
@@ -254,6 +253,7 @@ void HttpServer::HandleKqueueEvent(int kq, EventData *data, int filter) {
     EventData *request, *response;
     // read event 
     if (filter == EVFILT_READ) {
+        std::cout << "READ EVEBNT " << "\n";
         request = data;
         ssize_t byte_count = recv(fd, request->buffer, kMaxBufferSize, 0); // read data from client
 
@@ -261,61 +261,27 @@ void HttpServer::HandleKqueueEvent(int kq, EventData *data, int filter) {
         if (byte_count > 0) {  
             response = new EventData();
             response->fd = fd;
-            HandleHttpData(*request, response);
-            ControlKqueueEvent(kq, EV_ADD, fd, EVFILT_WRITE, response); // write response to client  
-            delete request; 
+            HandleHttpData(*request, response); 
+            std::cout << "http data is being handled " << request << "\n";
+            send(fd, response->buffer + response->cursor, response->length, 0);
+            ControlKqueueEvent(kq, EV_ADD, fd, EVFILT_WRITE, response);
+            //ControlKqueueEvent(kq, EV_ADD, fd, EVFILT_WRITE, new EventData()); // write response to client  
+            //delete request; 
         } 
-        // client has closed connection
-        else if (byte_count == 0) {  
-            ControlKqueueEvent(kq, EV_DELETE, fd, EVFILT_READ, nullptr);
-            close(fd);
-            delete request; 
-        } 
-        else {
-            if (errno == EAGAIN || errno == EWOULDBLOCK) {  // retry
-                request->fd = fd;
-                ControlKqueueEvent(kq, EV_ADD, fd, EVFILT_READ, request);
-            } 
-            else {  // other error
-                ControlKqueueEvent(kq, EV_DELETE, fd, EVFILT_READ, nullptr);
-                close(fd);
-                delete request;
-            }
-        }
     } 
     // write event 
     else if (filter == EVFILT_WRITE) {
-        response = data;
-        // send chunked response 
-        ssize_t byte_count = send(fd, response->buffer + response->cursor, response->length, 0);
-
-        if (byte_count >= 0) {
-            // there are still bytes to write
-            if (byte_count < response->length) {  
-                response->cursor += byte_count;
-                response->length -= byte_count;
-                ControlKqueueEvent(kq, EV_ADD, fd, EVFILT_WRITE, response); // change event to write 
-            } 
-            // the entire message has been written
-            else {   
-                // TODO: implement keep alive functionality 
-                request = new EventData();
-                request->fd = fd;
-                ControlKqueueEvent(kq, EV_DELETE, fd, EVFILT_WRITE, response);
-                //ControlKqueueEvent(kq, EV_ADD, fd, EVFILT_READ, request);
-                close(fd);
-                delete response; 
-            }
-        } 
+        std::cout << "write " << "\n";
+        // response = data;
+        // TODO: implement chunked response 
+        // ssize_t byte_count = send(fd, response->buffer + response->cursor, response->length, 0);
+        if(!data->keepAlive)
+        {
+            delete data;
+            close(fd);
+        }
         else {
-            if (errno == EAGAIN || errno == EWOULDBLOCK) {  // retry
-                ControlKqueueEvent(kq, EV_ADD, fd, EVFILT_WRITE, response);
-            } 
-            else {  // other error
-                ControlKqueueEvent(kq, EV_DELETE, fd, EVFILT_WRITE, nullptr);
-                close(fd);
-                delete response; 
-            }
+            std::cout << "ITS ALIVE" << "\n";
         }
     }
 }
@@ -343,9 +309,13 @@ void HttpServer::HandleHttpData(const EventData &raw_request, EventData *raw_res
     }
 
     // set response to write to client
+    
     response_string = to_string(http_response, true); //CHANGE
     memcpy(raw_response->buffer, response_string.c_str(), kMaxBufferSize);
     raw_response->length = response_string.length();
+    raw_response->keepAlive = http_response.GetKeepAlive();
+    std::cout << "response keep alive " << raw_response->keepAlive << "\n";
+    std::cout << "get keep alive " << http_response.GetKeepAlive() << "\n";
 }
 
 
@@ -371,8 +341,18 @@ HttpResponse HttpServer::HandleHttpRequest(const HttpRequest &request) {
 
 void HttpServer::ControlKqueueEvent(int kq, int op, int fd, std::uint32_t events, void *data) {
     struct kevent kev; 
-    // std::cout << "op " << op << "\n";
-    EV_SET(&kev, fd, events, EV_ADD, 0, 0, data);
+    std::cout << "op " << op << "\n";
+    std::cout << "fd " << fd << "\n";
+    std::cout << "events " << events << "\n";
+    std::cout << "data " << data << "\n";
+
+    if (op == 2) {
+        EV_SET(&kev, fd, events, EV_DELETE, 0, 0, data);
+        //return; 
+    } 
+    else {
+        EV_SET(&kev, fd, events, EV_ADD | EV_CLEAR, 0, 0, data);
+    }
     
     if (kevent(kq, &kev, 1, NULL, 0, NULL) == -1) {
         if (op == EV_DELETE && errno == ENOENT) {
