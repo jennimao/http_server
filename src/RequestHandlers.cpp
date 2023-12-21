@@ -18,6 +18,7 @@
 #include <boost/archive/iterators/insert_linebreaks.hpp>
 #include <boost/algorithm/string.hpp>
 #include <filesystem>
+#include <sys/stat.h>
 
 using namespace boost;
 namespace fs = std::__fs::filesystem;
@@ -30,7 +31,7 @@ size_t const lengthAcceptedFormats = 3;
 struct ContentSelection {
     int formatArray[lengthAcceptedFormats];
     int userAgent = -1; //1 is mobile 0 is computer
-    std::chrono::system_clock::time_point ifModifiedSince;
+    std::time_t ifModifiedSince;
     int connection; //0 is close, 1 is keep-alive 
     std::string username;
     std::string password;
@@ -406,7 +407,7 @@ std::string contentSelection(const HttpRequest& request, HttpResponse* response,
         if(std::__fs::filesystem::exists(toReturn))
         {
             filepathValid = true;
-            //std::cout << "filepath valid\n";
+            std::cout << "Accept Header: filepath valid\n";
         }
 
         std::cout << "filepath " << toReturn << "\n";
@@ -414,6 +415,7 @@ std::string contentSelection(const HttpRequest& request, HttpResponse* response,
         bool found = false;
         std::string alternative;
 
+        std::cout << "Wildcard Val:" << contentCriteria->formatArray[2] << "\n";
         if (filepathValid && contentCriteria->formatArray[2] != 1) {
             //std::cout << "here accept" << request.headers()["Accept"] << "\n";
         
@@ -553,11 +555,31 @@ std::string contentSelection(const HttpRequest& request, HttpResponse* response,
     {
         // Use std::filesystem::last_write_time to get a std::filesystem::file_time_type
         //std::cout << "recognizes header";
-        std::__fs::filesystem::file_time_type fileTime = std::__fs::filesystem::last_write_time(toReturn);
+       
+        //std::__fs::filesystem::file_time_type fileTime = std::__fs::filesystem::last_write_time(toReturn);
         
-        if(fileTime.time_since_epoch() < contentCriteria->ifModifiedSince.time_since_epoch())
+        struct stat fileStat;
+        if (stat(toReturn.c_str(), &fileStat) != 0) {
+            std::cerr << "File not found: " << toReturn << std::endl;
+            return "Not found";
+        }
+
+        std::tm lastModifiedTM = *std::gmtime(&fileStat.st_mtime);
+        std::time_t timeSinceEpoch = std::mktime(&lastModifiedTM);
+        
+        //std::chrono::system_clock::time_point timePoint = std::chrono::system_clock::from_time_t(fileStat.st_mtime);
+
+       //std::time_t lastModified = fileStat.st_mtime;
+        
+        //std::cout << "Last Modified: " << fileTime.to_string() << "\n";
+        std::string timeString1 = std::ctime(&(timeSinceEpoch));
+        std::string timeString2 = std::ctime(&(contentCriteria->ifModifiedSince));
+
+        std::cout << "file modified time: " << timeString1 << "\n";
+        std::cout << "if modified since time: " << timeString2 << "\n";
+        
+        if(timeSinceEpoch <= contentCriteria->ifModifiedSince)
         {
-            
             return "Not modified:" + filepath;
         }
     } 
@@ -660,6 +682,8 @@ HttpResponse RequestHandlers::GetHandler(const HttpRequest& request)
         std::string values = request.headers()["Accept"];
         std::stringstream ss(values);
 
+        std::cout << "Accept Header:" << values << "\n";
+
         std::vector<std::string> tokens;
         std::string token;
 
@@ -668,18 +692,18 @@ HttpResponse RequestHandlers::GetHandler(const HttpRequest& request)
         }
 
         for (const std::string& token : tokens) {
-           if(token.compare(acceptedFormats[0]) == 0) //could eventually turn this into a for
+           if(token.find(acceptedFormats[0]) != std::string::npos) //could eventually turn this into a for
            {
                 //add HTML to some sort of content generation array
                 contentSelectionCriteria.formatArray[0] = 1;
                 
            }
-           if (token.compare(acceptedFormats[1]) == 0)
+           if (token.find(acceptedFormats[1]) != std::string::npos)
            {
                //add plain to some sort of content generation array
                contentSelectionCriteria.formatArray[1] = 1;
            }
-           if (token.compare("*/*") == 0)
+           if (token.find("*/*") != std::string::npos)
            {
                 //std::cout << "wildcard type found\n";
                 contentSelectionCriteria.formatArray[2] = 1;
@@ -718,17 +742,18 @@ HttpResponse RequestHandlers::GetHandler(const HttpRequest& request)
         std::istringstream ss(request.headers()["If-Modified-Since"]);
         std::tm timeInfo = {};
         ss.imbue(std::locale("C")); // Set locale to "C" for consistent parsing
-
-        ss >> std::get_time(&timeInfo, "%a, %d %b %Y %H:%M:%S GMT");
+        std::cout << "The time:" << request.headers()["If-Modified-Since"];
+        ss >> std::get_time(&timeInfo, "%a,%d%b%Y%H:%M:%SGMT");
         if (ss.fail()) {
             std::cerr << "Weird Thing happening w/ time\n";
         }
 
         std::time_t time = std::mktime(&timeInfo);
-        std::chrono::system_clock::time_point compareable_time = std::chrono::system_clock::from_time_t(time);
+    
+        //std::chrono::system_clock::time_point compareable_time = std::chrono::system_clock::from_time_t(time);
 
         //add comparable time object to content gen data structure
-        contentSelectionCriteria.ifModifiedSince = compareable_time;
+        contentSelectionCriteria.ifModifiedSince = time;
 
     }
     if(!request.headers()["Connection"].empty()) //request.headers().find("Connection") != request.headers().end())
@@ -826,14 +851,29 @@ HttpResponse RequestHandlers::GetHandler(const HttpRequest& request)
 
     //fill in response message
     //get the file contents into a buffer
-    std::string data;
-    std::string dataChunk;
-    std::ifstream fileData(filepath);
-    while (std::getline (fileData, dataChunk)) {
-        data  = data + dataChunk + "\n";
+    if(filepath.find(".jpg") != std::string::npos)
+    {
+        std::ifstream file(filepath, std::ios::binary);
+        if (!file) {
+        throw std::runtime_error("Failed to open image file.");
+        }
+        std::vector<char> imageData((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
+        std::string convertedString(imageData.begin(), imageData.end());
+        std::cout << "My image string" << convertedString << "\n";
+        ourResponse.SetContent(convertedString, filepath);
     }
-    //std::cout << data << "\n";
-    ourResponse.SetContent(data, filepath);
+    else
+    {
+        std::string data;
+        std::string dataChunk;
+        std::ifstream fileData(filepath);
+        while (std::getline (fileData, dataChunk)) {
+            data  = data + dataChunk + "\n";
+        }
+        //std::cout << data << "\n";
+        ourResponse.SetContent(data, filepath);
+    }
+    
     ourResponse.SetStatusCode(HttpStatusCode::Ok);
     //std::cout << filepath << "\n";
     if(filepath.substr(filepath.length() - 5) == ".html")
@@ -841,9 +881,13 @@ HttpResponse RequestHandlers::GetHandler(const HttpRequest& request)
         //std::cout << "html" << "\n";
         ourResponse.SetHeader("Content-Type", "text/html");
     }
-    else
+    else if(filepath.substr(filepath.length() - 4) == ".txt")
     {
         ourResponse.SetHeader("Content-Type", "text/plain");
+    }
+    else if(filepath.substr(filepath.length() - 4) == ".jpg")
+    {
+        ourResponse.SetHeader("Content-Type", "image/jpeg");
     }
 
     return ourResponse;

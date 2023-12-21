@@ -329,6 +329,8 @@ HttpResponse HttpServer::HandleHttpRequest(const HttpRequest &request) {
         return HttpResponse(HttpStatusCode::MethodNotAllowed);
     } */
 
+    std::cout << "The Request:" << to_string(request) << "\n";
+
     //test for method indexing
     auto it = request_handlers_test.find(request.method());
     if (it == request_handlers_test.end()) {  // this method is not registered
