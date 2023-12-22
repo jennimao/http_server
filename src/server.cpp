@@ -76,19 +76,12 @@ void HttpServer::Start() {
 
 void HttpServer::Stop() {
     running_ = false;
-    /*listener_thread_.join();
-    for (int i = 0; i < kThreadPoolSize; i++) {
-        worker_threads_[i].join();
-    }*/
 
     // Join worker threads
     for (auto& worker : workers) {
         worker.join();
     }
-    /*
-    for (int i = 0; i < kThreadPoolSize; i++) {
-        close(worker_kqueue_fd_[i]);
-    }*/
+    
     close(sock_fd_);
 }
 
@@ -223,7 +216,6 @@ void HttpServer::ProcessEvents(int worker_id) {
         active = true;
         // iterate through the retrieved events and handle them
         for (int i = 0; i < num_events; i++) {
-            log("processing event");
             log(std::to_string(worker_id));
             const struct kevent &current_event = worker_events[i];
             data = reinterpret_cast<EventData *>(current_event.udata);
@@ -253,7 +245,6 @@ void HttpServer::HandleKqueueEvent(int kq, EventData *data, int filter) {
     EventData *request, *response;
     // read event 
     if (filter == EVFILT_READ) {
-        std::cout << "READ EVEBNT " << "\n";
         request = data;
         ssize_t byte_count = recv(fd, request->buffer, kMaxBufferSize, 0); // read data from client
 
@@ -271,17 +262,13 @@ void HttpServer::HandleKqueueEvent(int kq, EventData *data, int filter) {
     } 
     // write event 
     else if (filter == EVFILT_WRITE) {
-        std::cout << "write " << "\n";
-        // response = data;
-        // TODO: implement chunked response 
-        // ssize_t byte_count = send(fd, response->buffer + response->cursor, response->length, 0);
         if(!data->keepAlive)
         {
             delete data;
             close(fd);
         }
         else {
-            std::cout << "ITS ALIVE" << "\n";
+            std::cout << "connection is kept alive" << "\n";
         }
     }
 }
@@ -314,20 +301,10 @@ void HttpServer::HandleHttpData(const EventData &raw_request, EventData *raw_res
     memcpy(raw_response->buffer, response_string.c_str(), kMaxBufferSize);
     raw_response->length = response_string.length();
     raw_response->keepAlive = http_response.GetKeepAlive();
-    std::cout << "response keep alive " << raw_response->keepAlive << "\n";
-    std::cout << "get keep alive " << http_response.GetKeepAlive() << "\n";
 }
 
 
 HttpResponse HttpServer::HandleHttpRequest(const HttpRequest &request) {
-    /* auto it = request_handlers_.find(request.uri());
-    if (it == request_handlers_.end()) {  // this uri is not registered
-        return HttpResponse(HttpStatusCode::NotFound);
-    }
-    auto callback_it = it->second.find(request.method());
-    if (callback_it == it->second.end()) {  // no handler for this method
-        return HttpResponse(HttpStatusCode::MethodNotAllowed);
-    } */
 
     std::cout << "The Request:" << to_string(request) << "\n";
 
