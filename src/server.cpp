@@ -162,7 +162,13 @@ void HttpServer::WorkerThread(int workerID, int listeningSocket) {
 
                     clientData = new EventData();
                     clientData->fd = clientSocket;
-                    ControlKqueueEvent(kq, EV_ADD, clientSocket, EVFILT_READ, clientData);
+                    // this becomes a temporarily blocking call 
+
+                    // TODO: add a timeoout value to controlkqeueuevent 
+                    struct timespec timeout; 
+                    timeout.tv_sec = 3; // 3 second timeout 
+                    timeout.tv_nsec = 0; 
+                    ControlKqueueEvent(kq, EV_ADD, clientSocket, EVFILT_READ, clientData, &timeout);
                     //std::cout << "Worker " << workerID << " accepted connection on socket " << clientSocket << std::endl;
                 }
             }
@@ -182,9 +188,11 @@ void HttpServer::WorkerThread(int workerID, int listeningSocket) {
                 } 
                 else {
                     log("unexpected event");
-                    // handle unexpected by removing the event 
-                    ControlKqueueEvent(kq, EV_DELETE, data->fd, current_event.filter);
+                    delete data; 
                     close(data->fd);
+                    // handle unexpected by removing the event 
+                    //ControlKqueueEvent(kq, EV_DELETE, data->fd, current_event.filter);
+                    //close(data->fd);
                     //delete data; 
                 }
 
@@ -229,10 +237,10 @@ void HttpServer::ProcessEvents(int worker_id) {
                 HandleKqueueEvent(kq, data, EVFILT_WRITE);
             } 
             else {
-                log("unexpected event");
+                log("unexpected event while processing events\n");
                 // handle unexpected by removing the event 
                 //ControlKqueueEvent(kq, EV_DELETE, data->fd, current_event.filter);
-                //close(data->fd);
+                close(data->fd);
                 delete data; 
             }
         }
@@ -318,8 +326,9 @@ HttpResponse HttpServer::HandleHttpRequest(const HttpRequest &request) {
 }
 
 
-void HttpServer::ControlKqueueEvent(int kq, int op, int fd, std::uint32_t events, void *data) {
+void HttpServer::ControlKqueueEvent(int kq, int op, int fd, std::uint32_t events, void *data, struct timespec *timeout) {
     struct kevent kev; 
+    struct kevent kev2; 
     std::cout << "op " << op << "\n";
     std::cout << "fd " << fd << "\n";
     std::cout << "events " << events << "\n";
@@ -332,14 +341,37 @@ void HttpServer::ControlKqueueEvent(int kq, int op, int fd, std::uint32_t events
     else {
         EV_SET(&kev, fd, events, EV_ADD | EV_CLEAR, 0, 0, data);
     }
-    
-    if (kevent(kq, &kev, 1, NULL, 0, NULL) == -1) {
-        if (op == EV_DELETE && errno == ENOENT) {
-            // ENOENT = non existent event 
-            return; 
+
+    // there is timeout associated with this event (new connection)
+    if (timeout) {
+        int res = kevent(kq, &kev, 1, &kev, 1, timeout);
+        if (res == -1) {
+            if (op == EV_DELETE && errno == ENOENT) {
+                // ENOENT = non existent event 
+                return; 
+            }
+            throw std::runtime_error((op == EV_DELETE) ? "Failed to remove file descriptor" : "Failed to add file descriptor");
         }
-        throw std::runtime_error((op == EV_DELETE) ? "Failed to remove file descriptor" : "Failed to add file descriptor");
-    }    
+        else if (res == 0) {
+            printf("Timeout! Connection closed. \n");
+            close(fd);
+        }
+        else {
+            // data ia available for reading on new connection, add read event 
+            int res = kevent(kq, &kev, 1, NULL, 0, 0);
+        }
+    }
+    // no timeout associated 
+    else {
+        int res1 = kevent(kq, &kev, 1, NULL, 0, 0);
+        if (res1 == -1) {
+            if (op == EV_DELETE && errno == ENOENT) {
+                // ENOENT = non existent event 
+                return; 
+            }
+            throw std::runtime_error((op == EV_DELETE) ? "Failed to remove file descriptor" : "Failed to add file descriptor");
+        }
+    }
 }
 
 }  // namespace myHttpServer

@@ -101,7 +101,8 @@ class HttpServer {
         void HandleHttpData(const EventData& request, EventData* response);
         HttpResponse HandleHttpRequest(const HttpRequest& request);
         void ControlKqueueEvent(int kq, int op, int fd,
-                                std::uint32_t events = 0, void* data = nullptr);
+                                std::uint32_t events = 0, void *data = nullptr, 
+                                struct timespec *timeout = nullptr);
     };
 
 }  // namespace myHttpServer
