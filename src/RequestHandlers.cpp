@@ -755,7 +755,6 @@ HttpResponse RequestHandlers::GetHandler(const HttpRequest& request)
     //get the file contents into a response buffer
     if(filepath.find(".jpg") != std::string::npos)
     {
-        printf("JPG IS FOUND \n");
         std::ifstream file(filepath, std::ios::binary);
         if (!file) {
             throw std::runtime_error("Failed to open image file. \n");

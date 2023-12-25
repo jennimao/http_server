@@ -136,6 +136,8 @@ class HttpResponse : public HttpMessage {
     }
     ~HttpResponse() = default;
 
+    std::vector<char> content() const { return content_; }
+
     void SetContent(const std::string& content, const std::string& filepath="") {
 
       //content_ = std::move(content);
@@ -150,14 +152,10 @@ class HttpResponse : public HttpMessage {
         SetHeader("Last-Modified", lastModified);
       }
     }
-
-    // std::vector<char> binary_content() const { return binary_content_; }
-    std::vector<char> content() const { return content_; }
+    
     void SetContent(const std::vector<char>& content, size_t length, const std::string& filepath="") {
       content_.assign(content.begin(), content.end());
       SetHeader("Content-Length", std::to_string(length));
-      // SetContentLength(content_);
-
       if (filepath != "") {
         std::string contentType = GetContentType(filepath);
         SetHeader("Content-Type", contentType);
@@ -182,14 +180,10 @@ class HttpResponse : public HttpMessage {
     bool GetKeepAlive() { return keepAlive_; }
 
     HttpStatusCode status_code() const { return status_code_; }
-
-    // friend std::string to_string(const HttpResponse& request, bool send_content);
     friend std::vector<char> to_chars(const HttpResponse& request, bool send_content);
     friend HttpResponse string_to_response(const std::string& response_string);
 
   private:
-    // std::vector<char> binary_content_; //for binary files
-
     std::vector<char> content_;   
     HttpStatusCode status_code_;
     std::string GetCurrentDate();
@@ -200,7 +194,6 @@ class HttpResponse : public HttpMessage {
 
 // Utility functions to convert HTTP message objects to string and vice versa
 std::string to_string(const HttpRequest& request);
-//std::string to_string(const HttpResponse& response, bool send_content = true);
 std::vector<char> to_chars(const HttpResponse& response, bool send_content = true);
 HttpRequest string_to_request(const std::string& request_string);
 HttpResponse string_to_response(const std::string& response_string);
