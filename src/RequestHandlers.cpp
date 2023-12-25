@@ -44,56 +44,44 @@ struct ContentSelection {
 // Config file parsing and virtual hosts
 ////////////////////////////////////////////////////////////
 
-void RequestHandlers::ParseConfigFile(std::string configfile, int* port, int* selectLoops)
-{
-  std::cout << "hello\n";
+void RequestHandlers::ParseConfigFile(std::string configfile, int* port, int* selectLoops) {
   std::string dataChunk;
   std::ifstream fileData(configfile);
   std::string DocumentRoot;
   std::string ServerName;
   while (std::getline (fileData, dataChunk)) { //parsing based on example config in spec, only supports listeing on one port
-          std::cout << "DataChunk: " << dataChunk << "\n";
-          if (dataChunk.find("Listen") != std::string::npos)
-          {
-            *port = std::stoi(dataChunk.substr(7, dataChunk.length()));
-          }
-
-          else if (dataChunk.find("nSelectLoops") != std::string::npos)
-          {
-            *selectLoops = std::stoi(dataChunk.substr(13, dataChunk.length()));
-            std::cout << "chunk: " << dataChunk.substr(13, dataChunk.length()) << "\n";
-          }
-
-          else if (dataChunk.find("<VirtualHost") != std::string::npos){
-            while (std::getline (fileData, dataChunk)) {
-              if(dataChunk.find("DocumentRoot") != std::string::npos)
-              {
+    std::cout << "DataChunk: " << dataChunk << "\n";
+    if (dataChunk.find("Listen") != std::string::npos) {
+        *port = std::stoi(dataChunk.substr(7, dataChunk.length()));
+    }
+    else if (dataChunk.find("nSelectLoops") != std::string::npos) {
+        *selectLoops = std::stoi(dataChunk.substr(13, dataChunk.length()));
+        std::cout << "chunk: " << dataChunk.substr(13, dataChunk.length()) << "\n";
+    }
+    else if (dataChunk.find("<VirtualHost") != std::string::npos) {
+        while (std::getline (fileData, dataChunk)) { 
+            if(dataChunk.find("DocumentRoot") != std::string::npos) {
                 DocumentRoot = dataChunk.substr(dataChunk.find("DocumentRoot ") + 14), dataChunk.length();
-              }
-              
-              else if(dataChunk.find("ServerName") != std::string::npos)
-              {
+            } 
+            else if(dataChunk.find("ServerName") != std::string::npos) {
                 ServerName = dataChunk.substr(dataChunk.find("ServerName ") + 11, dataChunk.length());
-              }
-              
-              else if(dataChunk.find("</VirtualHost>") != std::string::npos){
+            }
+            else if(dataChunk.find("</VirtualHost>") != std::string::npos) {
                 virtualHosts[ServerName] = DocumentRoot;
                 if(virtualHosts.size() == 1)
                 {
-                  virtualHosts["root"] = DocumentRoot;
+                    virtualHosts["root"] = DocumentRoot;
                 }
                 break;
-              }
-          }
-
+            }
         }
 
+    }
+
   }
-  std::cout << "end\n";
 }
 
-void RequestHandlers::PrintVirtualHosts(void)
-{
+void RequestHandlers::PrintVirtualHosts(void) {
     // Iterate over the elements and print them
     for (const auto& pair : virtualHosts) {
         std::cout << "Key: " << pair.first << ", Value: " << pair.second << std::endl;
@@ -209,22 +197,20 @@ HttpResponse runPostExecutable(const std::string& filepath, const std::string& i
         close(inputPipe[1]);
 
         // Read output from the child process (stdout)
-        char buffer[4096];
-        std::string output;
+        char buffer[kMaxBufferSize];
+        //std::string output;
+        std::vector<char> output;
         ssize_t bytesRead;
 
         while ((bytesRead = read(outputPipe[0], buffer, sizeof(buffer))) > 0) {
-            output.append(buffer, bytesRead);
+            //output.append(buffer, bytesRead);
+            output.insert(output.end(), buffer, buffer + bytesRead);
         }
         close(outputPipe[0]);
-    
-        std::cout << "Captured CGI Output:\n" << output << "\n";
-
-        // should i add a kqueue event here?
 
         // Return the CGI script's output as an HTTP response
         HttpResponse response(HttpStatusCode::Ok);
-        response.SetContent(output, filepath);
+        response.SetContent(output, output.size(), filepath);
         return response;
     }
 }
@@ -352,6 +338,7 @@ std::string authorizationCheck(ContentSelection* contentCriteria, std::string fi
 ////////////////////////////////////////////////////////////
 // Content Selection 
 ////////////////////////////////////////////////////////////
+
 //returns the filepath of the resource to return
 std::string contentSelection(const HttpRequest& request, HttpResponse* response, ContentSelection* contentCriteria, std::string filepath) {
     
@@ -361,36 +348,28 @@ std::string contentSelection(const HttpRequest& request, HttpResponse* response,
     std::__fs::filesystem::path myFileObj(filepath);
 
     //if the path does not end in a file
-    if(std::__fs::filesystem::is_directory(filepath))
-    {
+    if(std::__fs::filesystem::is_directory(filepath)) {
         //checking for index_m.html and index.html
-        for (const auto& entry : std::__fs::filesystem::directory_iterator(filepath)) 
-        {
-            if (entry.is_regular_file() && entry.path().filename().compare("index_m.html") == 0) 
-            {
+        for (const auto& entry : std::__fs::filesystem::directory_iterator(filepath))  {
+            if (entry.is_regular_file() && entry.path().filename().compare("index_m.html") == 0) {
                 mIndexPath = filepath + "/index_m.html";
             }
-            if (entry.is_regular_file() && entry.path().filename().compare("index.html") == 0) 
-            {
+            if (entry.is_regular_file() && entry.path().filename().compare("index.html") == 0) {
                 indexPath = filepath + "index.html";
             }
 
         }
         //if mobile agent
-        if(contentCriteria->userAgent == 1)
-        {
-            if(!mIndexPath.empty())
-            {
+        if(contentCriteria->userAgent == 1) {
+            if(!mIndexPath.empty()) {
                 toReturn =  mIndexPath;
             }
 
         }
-        else if (!indexPath.empty()) //either non-mobile or don't know
-        {
+        else if (!indexPath.empty()) { //either non-mobile or don't know
             toReturn = indexPath;
         }
-        else
-        {
+        else {
             return "NotFound";
         }
 
@@ -400,12 +379,10 @@ std::string contentSelection(const HttpRequest& request, HttpResponse* response,
     //if the filepath exists, and the suffix is one of the data types the user supports, put it as the to return
     //if not, search for files in the dir that have that name with one of the supported suffixes 
     //if that fails return not found
-    if(!request.headers()["Accept"].empty())
-    {
+    if(!request.headers()["Accept"].empty()) {
         bool filepathValid = false;
         //see if filepath is valid
-        if(std::__fs::filesystem::exists(toReturn))
-        {
+        if(std::__fs::filesystem::exists(toReturn)) {
             filepathValid = true;
             std::cout << "Accept Header: filepath valid\n";
         }
@@ -417,50 +394,37 @@ std::string contentSelection(const HttpRequest& request, HttpResponse* response,
 
         std::cout << "Wildcard Val:" << contentCriteria->formatArray[2] << "\n";
         if (filepathValid && contentCriteria->formatArray[2] != 1) {
-            //std::cout << "here accept" << request.headers()["Accept"] << "\n";
-        
-            //std::cout << "html: " << contentCriteria->formatArray[0] << "text: " << contentCriteria->formatArray[1] << "\n";
-            for(int i = 0; i < lengthAcceptedFormats; i++)
-            {
+            for (int i = 0; i < lengthAcceptedFormats; i++) {
                 //std::cout << "i: " << i << "\n";
                 //std::cout << "content criteria " << contentCriteria->formatArray[i] << "\n";
                 //std::cout << "accepted formats endings " << toReturn.find(acceptedFormatsEndings[i]) << "\n";
-                if(filepathValid && contentCriteria->formatArray[i] == 1 && toReturn.find(acceptedFormatsEndings[i]) != std::string::npos)
-                {
+                if(filepathValid && contentCriteria->formatArray[i] == 1 && toReturn.find(acceptedFormatsEndings[i]) != std::string::npos) {
                     found = true;
                     break;
                 }
-                else if(contentCriteria->formatArray[i] == 1)
-                {
+                else if (contentCriteria->formatArray[i] == 1) {
                     //std::cout << "alternative here";
                     //std::cout << "empty val" << alternative.empty() << "\n";
-                    if(alternative.empty())
-                    {
-                        if(toReturn.find('.') != std::string::npos)
-                        {
+                    if (alternative.empty()) {
+                        if(toReturn.find('.') != std::string::npos) {
                             alternative = toReturn.substr(0, toReturn.find('.')) + acceptedFormatsEndings[i];
                         }
-                        else
-                        {
+                        else {
                             alternative = toReturn + acceptedFormatsEndings[i];
                         }
                         //std::cout << "alternative" << alternative;
 
-                        if(!std::__fs::filesystem::exists(alternative))
-                        {
+                        if(!std::__fs::filesystem::exists(alternative)) {
                             alternative.clear();
                         }
                     }
                 }
             }
-            if(!found)
-            {
-                if (alternative != "")
-                {
+            if (!found) {
+                if (alternative != "") {
                     toReturn = alternative;
                 }
-                else
-                {
+                else {
                     return "NotFound";
                 } 
             }
@@ -473,23 +437,18 @@ std::string contentSelection(const HttpRequest& request, HttpResponse* response,
     //check user agent
     //std::cout << "userAgent " << contentCriteria->userAgent << "\n";
     std::__fs::filesystem::path myNewFileObj(toReturn);
-    if(contentCriteria->userAgent != -1)
-    {
-        if(contentCriteria->userAgent == 1) //mobile
-        {
+    if(contentCriteria->userAgent != -1) {
+        if(contentCriteria->userAgent == 1) { //mobile
             //std::cout << "he's a mobile boi\n";
-            if(myNewFileObj.filename().string().find("_m") == std::string::npos) //if they requested a non-mobile file
-            {
+            if(myNewFileObj.filename().string().find("_m") == std::string::npos) { //if they requested a non-mobile file
                 //look for a mobile version
                 //constructing new name:
                 std::string newName;
                 size_t hasSuffix = myFileObj.filename().string().find('.');
-                if(hasSuffix == std::string::npos)
-                {
+                if(hasSuffix == std::string::npos) {
                     newName = myNewFileObj.filename().string() + "_m";
                 }
-                else
-                {
+                else {
                     newName = myNewFileObj.filename().string().substr(0, hasSuffix) + "_m" + myNewFileObj.filename().string().substr(hasSuffix, myFileObj.filename().string().length());
                 }
                 //std::cout << "filename : " << myNewFileObj.filename() << "\n";
@@ -497,14 +456,12 @@ std::string contentSelection(const HttpRequest& request, HttpResponse* response,
 
                 boost::to_lower(newName);
 
-                for (const auto& entry : std::__fs::filesystem::directory_iterator(myFileObj.parent_path())) 
-                {
+                for (const auto& entry : std::__fs::filesystem::directory_iterator(myFileObj.parent_path())){
                     //std::cout << "files " << entry.path().filename() << "\n";
                     std::string currentFile = entry.path().filename();
                     boost:to_lower(currentFile);
 
-                    if (entry.is_regular_file() && currentFile.compare(newName) == 0) 
-                    {
+                    if (entry.is_regular_file() && currentFile.compare(newName) == 0) {
                         //std::cout << "sucess!";
                         toReturn = myFileObj.remove_filename().string() + "/" + newName;
                     }
@@ -513,32 +470,26 @@ std::string contentSelection(const HttpRequest& request, HttpResponse* response,
 
             }
         }
-        else
-        {
+        else {
             size_t filenameLen = myNewFileObj.filename().string().length();
-            if(myNewFileObj.filename().string().find("_m.") != std::string::npos || (myNewFileObj.filename().string()[filenameLen - 1] == 'm' && myNewFileObj.filename().string()[filenameLen - 2] == '_')) //if they requested a non-mobile file
-            {
+            if (myNewFileObj.filename().string().find("_m.") != std::string::npos || (myNewFileObj.filename().string()[filenameLen - 1] == 'm' && myNewFileObj.filename().string()[filenameLen - 2] == '_')) { //if they requested a non-mobile file
                 //look for a non - mobile version
                 //constructing new name:
                 std::string newName;
                 size_t hasSuffix = myNewFileObj.filename().string().find('.');
-                if(hasSuffix == std::string::npos)
-                {
+                if (hasSuffix == std::string::npos) {
                     newName = myNewFileObj.filename().string().substr(0, filenameLen - 2);
                 }
-                else
-                {
+                else {
                     newName = myNewFileObj.filename().string().substr(0, hasSuffix - 2) + myNewFileObj.filename().string().substr(hasSuffix, myFileObj.filename().string().length());
                 }
 
                 boost::to_lower(newName);
               
-                for (const auto& entry : std::__fs::filesystem::directory_iterator(myFileObj.parent_path())) 
-                {
+                for (const auto& entry : std::__fs::filesystem::directory_iterator(myFileObj.parent_path())) {
                     std::string currentFile = entry.path().filename();
                     boost::to_lower(currentFile);
-                    if (entry.is_regular_file() && currentFile.compare(newName) == 0) 
-                    {
+                    if (entry.is_regular_file() && currentFile.compare(newName) == 0) {
                         toReturn = myFileObj.remove_filename().string() + "/" + newName;
                     }
 
@@ -551,8 +502,7 @@ std::string contentSelection(const HttpRequest& request, HttpResponse* response,
     //check ifmodifiedsince 
     //if has been modified, continue
     //if not been modified, return 304 not modified
-    if(!request.headers()["If-Modified-Since"].empty()) //if there's an if modified since header, it's been parsed
-    {
+    if(!request.headers()["If-Modified-Since"].empty()) { //if there's an if modified since header, it's been parsed
         // Use std::filesystem::last_write_time to get a std::filesystem::file_time_type
         //std::cout << "recognizes header";
        
@@ -586,16 +536,12 @@ std::string contentSelection(const HttpRequest& request, HttpResponse* response,
 
     //check authorization
     std::string ret = authorizationCheck(contentCriteria, filepath);
-    if(ret != "ok")
-    {
+    if(ret != "ok") {
         std::cout <<  "Unauthorized: " << ret << "\n";
         return "Unauthorized: " + ret;
     }
 
     return toReturn;
-
-    
-
 }
 
 int fillInErrorResponse(std::string filepath, HttpResponse* response) {
@@ -729,24 +675,16 @@ HttpResponse RequestHandlers::GetHandler(const HttpRequest& request)
         }
 
         std::time_t time = std::mktime(&timeInfo);
-    
-        //std::chrono::system_clock::time_point compareable_time = std::chrono::system_clock::from_time_t(time);
-
-        //add comparable time object to content gen data structure
         contentSelectionCriteria.ifModifiedSince = time;
 
     }
     if(!request.headers()["Connection"].empty()) { //request.headers().find("Connection") != request.headers().end())
         std::vector<std::string> connectionAcceptedValues = {"close", "keep-alive"};
         if(request.headers()["Connection"].find(connectionAcceptedValues[0]) != std::string::npos) {
-            std::cout << "CLOSE HEADER" << "\n";
-            //set some overarching connection var, this can't be just achieved in the response
             contentSelectionCriteria.connection = 0;
             response.SetKeepAlive(false);
         }
         else if (request.headers()["Connection"].find(connectionAcceptedValues[1]) != std::string::npos) {
-            std::cout << "KEEP ALIVE HEADER" << "\n";
-            //set some overarching connection var also
             contentSelectionCriteria.connection = 1;
             response.SetKeepAlive(true);
         }
@@ -755,7 +693,6 @@ HttpResponse RequestHandlers::GetHandler(const HttpRequest& request)
     if(!request.headers()["Authorization"].empty()) {
         // check that it is the basic form
         std::string authorization_string = request.headers()["Authorization"];
-        //std::cout << "Auth: " << request.headers()["Authorization"] << "\n";
         if (authorization_string.substr(0, 5).compare("Basic") != 0) {
             std::cerr << "Unsupported authentification\n";
         }
@@ -797,7 +734,6 @@ HttpResponse RequestHandlers::GetHandler(const HttpRequest& request)
         else {
             response.SetStatusCode(HttpStatusCode::Ok); //200
         }
-
         // make wrapper function for headers
         return response; 
     }
@@ -816,9 +752,7 @@ HttpResponse RequestHandlers::GetHandler(const HttpRequest& request)
         return runGetExecutable(filepath);
     }
 
-
-    //fill in response message
-    //get the file contents into a buffer
+    //get the file contents into a response buffer
     if(filepath.find(".jpg") != std::string::npos)
     {
         printf("JPG IS FOUND \n");
@@ -828,11 +762,7 @@ HttpResponse RequestHandlers::GetHandler(const HttpRequest& request)
         }
         std::vector<char> imageData((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
         std::string convertedString(imageData.begin(), imageData.end());
-        std::cout << "My image string: " << convertedString << "\n";
-
-        response.SetContent(convertedString, filepath);
-
-        //response.SetContent(convertedString, filepath);
+        response.SetContent(imageData, imageData.size(), filepath); 
     }
     else
     {
@@ -842,12 +772,11 @@ HttpResponse RequestHandlers::GetHandler(const HttpRequest& request)
         while (std::getline (fileData, dataChunk)) {
             data  = data + dataChunk + "\n";
         }
-        //std::cout << data << "\n";
         response.SetContent(data, filepath);
     }
     
     response.SetStatusCode(HttpStatusCode::Ok);
-    //std::cout << filepath << "\n";
+    
     if(filepath.substr(filepath.length() - 5) == ".html") {
         response.SetHeader("Content-Type", "text/html");
     }
@@ -857,8 +786,6 @@ HttpResponse RequestHandlers::GetHandler(const HttpRequest& request)
     else if(filepath.substr(filepath.length() - 4) == ".jpg") {
         response.SetHeader("Content-Type", "image/jpeg");
     }
-
-    std::cout << "response " << to_string(response) << "\n";
 
     // return HTTP response object 
     return response;

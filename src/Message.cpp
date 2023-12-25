@@ -19,6 +19,7 @@
 #include <cerrno>
 #include <sys/stat.h>
 #include <boost/algorithm/string.hpp>
+#include <vector>
 
 
 namespace fs = std::filesystem;
@@ -125,19 +126,48 @@ std::string to_string(const HttpRequest& request) {
   return oss.str();
 }
 
-std::string to_string(const HttpResponse& response, bool send_content) {
-  std::ostringstream oss;
+// Turns the HTTP response to chars to be sent over the socket
+// the vector of chars is able to handle binary data
+std::vector<char> to_chars(const HttpResponse& response, bool send_content) {
+    std::vector<char> byte_buffer;
 
-  oss << to_string(response.version()) << ' ';
-  oss << static_cast<int>(response.status_code()) << ' ';
-  oss << to_string(response.status_code()) << "\r\n";
-  for (const auto& p : response.headers())
-    oss << p.first << ": " << p.second << "\r\n";
-  oss << "\r\n";
-  if (send_content) oss << response.content();
-  //std::cout << oss.str(); // Print the string to stdout
-  return oss.str();
+    // Version
+    std::string version_str = to_string(response.version());
+    byte_buffer.insert(byte_buffer.end(), version_str.begin(), version_str.end());
+    byte_buffer.push_back(' ');
+
+    // Status code
+    std::string status_code_str = std::to_string(static_cast<int>(response.status_code()));
+    byte_buffer.insert(byte_buffer.end(), status_code_str.begin(), status_code_str.end());
+    byte_buffer.push_back(' ');
+
+    byte_buffer.insert(byte_buffer.end(), status_code_str.begin(), status_code_str.end());
+    byte_buffer.push_back('\r');
+    byte_buffer.push_back('\n');
+
+    // Headers
+    for (const auto& p : response.headers()) {
+        byte_buffer.insert(byte_buffer.end(), p.first.begin(), p.first.end());
+        byte_buffer.push_back(':');
+        byte_buffer.push_back(' ');
+        byte_buffer.insert(byte_buffer.end(), p.second.begin(), p.second.end());
+        byte_buffer.push_back('\r');
+        byte_buffer.push_back('\n');
+    }
+
+    byte_buffer.push_back('\r');
+    byte_buffer.push_back('\n');
+
+    // Content
+    if (send_content) {
+        const std::vector<char>& content = response.content(); //TODO: eventually switch over to all content 
+        byte_buffer.insert(byte_buffer.end(), content.begin(), content.end());
+    }
+
+    return byte_buffer;
 }
+
+
 
 HttpRequest string_to_request(const std::string& request_string) {
   std::string start_line, header_lines, message_body;
@@ -268,7 +298,7 @@ std::string HttpResponse::GetContentType(const std::string& filename) {
           return it->second;
       }
   }
-  return "text/plain"; //default, maybe change to unknown
+  return "text/plain"; // default, maybe change to unknown
 }
 
 
@@ -297,4 +327,4 @@ std::string HttpResponse::GetLastModified(const std::string& contentPath) {
 }
 
 
-}  // namespace simple_http_server
+} 

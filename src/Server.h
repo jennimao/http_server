@@ -88,9 +88,6 @@ class HttpServer {
 
         void CreateSocket();
         void WorkerThread(int workerID, int listeningSocket);
-        //void SetUpKqueue();
-        //void Listen();
-        void ProcessEvents(int worker_id);
         void HandleKqueueEvent(int kq, EventData *data, int filter);
         void HandleHttpData(const EventData& request, EventData* response);
         HttpResponse HandleHttpRequest(const HttpRequest& request);

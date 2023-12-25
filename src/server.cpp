@@ -1,5 +1,6 @@
 #include "Server.h"
-
+#include "Message.h"
+#include "Uri.h"
 #include <arpa/inet.h>
 #include <sys/socket.h>
 #include <sys/types.h>
@@ -16,9 +17,6 @@
 #include <stdexcept>
 #include <string>
 #include <iostream>
-
-#include "Message.h"
-#include "Uri.h"
 
 void log(const std::string& message) {
     std::cout << message << std::endl;
@@ -117,7 +115,6 @@ void HttpServer::WorkerThread(int workerID, int listeningSocket) {
     }
 
     // register the listening socket with the worker's kqueue
-    // TODO: i removed the timeout, make sure we really don't need it 
     ControlKqueueEvent(kq, EV_ADD, listeningSocket, EVFILT_READ);
 
     struct kevent events[kMaxEvents];
@@ -134,8 +131,6 @@ void HttpServer::WorkerThread(int workerID, int listeningSocket) {
             active = false;
             continue;
         }
-
-        //log("worker " + std::to_string(workerID) + " is running");
 
         // iterate through the retrieved events and handle them 
         for (int i = 0; i < numEvents; ++i) {
@@ -213,10 +208,7 @@ void HttpServer::HandleKqueueEvent(int kq, EventData *data, int filter) {
             response = new EventData();
             response->fd = fd;
             HandleHttpData(*request, response); 
-            std::cout << "http data is being handled " << request << "\n";
-
             send(fd, response->buffer + response->cursor, response->length, 0);
-            
             ControlKqueueEvent(kq, EV_ADD, fd, EVFILT_WRITE, response);
             //delete request; 
         } 
@@ -224,10 +216,8 @@ void HttpServer::HandleKqueueEvent(int kq, EventData *data, int filter) {
     // write event 
     else if (filter == EVFILT_WRITE) {
         // eventually move send into here 
-        // check if the bytes sent is equal to it 
 
-        if(!data->keepAlive)
-        {
+        if(!data->keepAlive) {
             delete data;
             close(fd);
         }
@@ -242,6 +232,7 @@ void HttpServer::HandleKqueueEvent(int kq, EventData *data, int filter) {
 // and then copies it into an EventData response object
 void HttpServer::HandleHttpData(const EventData &raw_request, EventData *raw_response) {
     std::string request_string(raw_request.buffer), response_string;
+    std::vector<char> response_vector; 
     HttpRequest http_request;
     HttpResponse http_response;
 
@@ -262,10 +253,10 @@ void HttpServer::HandleHttpData(const EventData &raw_request, EventData *raw_res
         http_response.SetContent(e.what());
     }
 
-    // set response to write to client
-    response_string = to_string(http_response, true); //CHANGE
-    memcpy(raw_response->buffer, response_string.c_str(), kMaxBufferSize);
-    raw_response->length = response_string.length();
+    response_vector = to_chars(http_response, true);
+    size_t copy_length = std::min(response_vector.size(), static_cast<size_t>(kMaxBufferSize));
+    memcpy(raw_response->buffer, response_vector.data(), copy_length);
+    raw_response->length = static_cast<int>(copy_length);
     raw_response->keepAlive = http_response.GetKeepAlive();
 }
 
@@ -286,15 +277,14 @@ HttpResponse HttpServer::HandleHttpRequest(const HttpRequest &request) {
 
 void HttpServer::ControlKqueueEvent(int kq, int op, int fd, std::uint32_t events, void *data, struct timespec *timeout) {
     struct kevent kev; 
-    struct kevent kev2; 
-    std::cout << "op " << op << "\n";
+
+    /*std::cout << "op " << op << "\n";
     std::cout << "fd " << fd << "\n";
     std::cout << "events " << events << "\n";
-    std::cout << "data " << data << "\n";
+    std::cout << "data " << data << "\n";*/
 
     if (op == 2) {
         EV_SET(&kev, fd, events, EV_DELETE, 0, 0, data);
-        //return; 
     } 
     else {
         EV_SET(&kev, fd, events, EV_ADD | EV_CLEAR, 0, 0, data);

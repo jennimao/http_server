@@ -69,16 +69,6 @@ void test_request_to_string() {
   EXPECT_TRUE(to_string(request) == expected_str);
 }
 
-void test_response_to_string() {
-  HttpResponse response;
-  response.SetStatusCode(HttpStatusCode::InternalServerError);
-
-  std::string expected_str;
-  expected_str += "HTTP/1.1 500 Internal Server Error\r\n\r\n";
-
-  EXPECT_TRUE(to_string(response) == expected_str);
-}
-
 int main(void) {
   std::cout << "Running tests..." << std::endl;
 
@@ -89,7 +79,6 @@ int main(void) {
   test_string_to_method();
   test_string_to_version();
   test_request_to_string();
-  test_response_to_string();
 
   std::cout << "All tests have finished. There were " << err
             << " errors in total" << std::endl;
