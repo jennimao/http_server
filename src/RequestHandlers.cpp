@@ -598,37 +598,32 @@ std::string contentSelection(const HttpRequest& request, HttpResponse* response,
 
 }
 
-int fillInErrorResponse(std::string filepath, HttpResponse* ourResponse)
-{
-    if(filepath.find("Not modified") != std::string::npos)
-    {
+int fillInErrorResponse(std::string filepath, HttpResponse* response) {
+    if(filepath.find("Not modified") != std::string::npos) {
         std::cout << "not modified\n";
         std::string actual_filepath = filepath.substr(filepath.find(":") + 1);
-        (*ourResponse).SetStatusCode(myHttpServer::HttpStatusCode::NotModified);
-        (*ourResponse).SetLastModified(actual_filepath);
+        (*response).SetStatusCode(myHttpServer::HttpStatusCode::NotModified);
+        (*response).SetLastModified(actual_filepath);
 
         return 1;
     }
-    else if (filepath == "NotFound")
-    {
-        (*ourResponse).SetStatusCode(myHttpServer::HttpStatusCode::NotFound);
+    else if (filepath == "NotFound") {
+        (*response).SetStatusCode(myHttpServer::HttpStatusCode::NotFound);
         return 1;
     }
-    else if (filepath.find("Unauthorized") != std::string::npos)
-    {
+    else if (filepath.find("Unauthorized") != std::string::npos) {
         int posOfFirstColon = filepath.find(":");
         int posOfSecondColon = filepath.substr(posOfFirstColon + 1).find(":");
         std::string authType = filepath.substr(posOfFirstColon + 1, posOfSecondColon);
         std::string authName = filepath.substr(posOfSecondColon + posOfFirstColon + 2);
         std::cout << "authType" << authType << "\n";
         std::cout << "authName" << authName << "\n";
-        (*ourResponse).SetStatusCode(myHttpServer::HttpStatusCode::Unauthorized);
-        (*ourResponse).SetAuthHeader(authType, authName);
+        (*response).SetStatusCode(myHttpServer::HttpStatusCode::Unauthorized);
+        (*response).SetAuthHeader(authType, authName);
         return 1;
     }
-    else if (filepath == "Bad URL")
-    {
-        (*ourResponse).SetStatusCode(myHttpServer::HttpStatusCode::Forbidden);
+    else if (filepath == "Bad URL") {
+        (*response).SetStatusCode(myHttpServer::HttpStatusCode::Forbidden);
         return 1; 
     }
     return 0;
@@ -644,40 +639,34 @@ int fillInErrorResponse(std::string filepath, HttpResponse* ourResponse)
 
 HttpResponse RequestHandlers::GetHandler(const HttpRequest& request) 
 {
-
-    HttpResponse ourResponse;
+    HttpResponse response;
     ContentSelection contentSelectionCriteria;
     std::string root;
     //validate URI
     std::string our_uri = request.uri().path();
 
-    if(our_uri[0] != '/' && our_uri[0] != 'h')
-    {
+    if(our_uri[0] != '/' && our_uri[0] != 'h') {
         std::cerr << "Bad URL1: " << our_uri[0] << "\n";
-        fillInErrorResponse("Bad URL", &ourResponse);
-        return ourResponse;
+        fillInErrorResponse("Bad URL", &response);
+        return response;
     }
-    else if(our_uri.find("..") != std::string::npos)
-    {
+    else if(our_uri.find("..") != std::string::npos) {
         std::cerr << "Bad URL2:" << our_uri << "\n";
-        fillInErrorResponse("Bad URL", &ourResponse);
-        return ourResponse;
+        fillInErrorResponse("Bad URL", &response);
+        return response;
     }
 
     //Virtual Host
     //std::cout << "host: " << request.uri().host() << "\n";
-    if(virtualHosts.find(request.headers()["Host"]) != virtualHosts.end())
-    {
+    if(virtualHosts.find(request.headers()["Host"]) != virtualHosts.end()) {
         root = virtualHosts[request.headers()["Host"]];
     } 
-    else
-    {
+    else {
         root = virtualHosts["root"]; //unspecified host leads to root virtual host being used
     }
 
     //Accept Header
-    if(!request.headers()["Accept"].empty()) //request.headers().find("Accept") != request.headers().end())
-    {
+    if(!request.headers()["Accept"].empty()) { //request.headers().find("Accept") != request.headers().end())
         //parse accept, we only handle text/html, text/plain, and wildcard for now
         std::string values = request.headers()["Accept"];
         std::stringstream ss(values);
@@ -692,52 +681,43 @@ HttpResponse RequestHandlers::GetHandler(const HttpRequest& request)
         }
 
         for (const std::string& token : tokens) {
-           if(token.find(acceptedFormats[0]) != std::string::npos) //could eventually turn this into a for
-           {
+           if(token.find(acceptedFormats[0]) != std::string::npos) { //could eventually turn this into a for
                 //add HTML to some sort of content generation array
                 contentSelectionCriteria.formatArray[0] = 1;
                 
            }
-           if (token.find(acceptedFormats[1]) != std::string::npos)
-           {
+           if (token.find(acceptedFormats[1]) != std::string::npos) {
                //add plain to some sort of content generation array
                contentSelectionCriteria.formatArray[1] = 1;
            }
-           if (token.find("*/*") != std::string::npos)
-           {
+           if (token.find("*/*") != std::string::npos) {
                 //std::cout << "wildcard type found\n";
                 contentSelectionCriteria.formatArray[2] = 1;
            }
            //if its not one of the type we handle, ignore
         }
-
     }
 
     //User-Agent
-    if(!request.headers()["User-Agent"].empty())//request.headers().find("UserAgent") != request.headers().end())
-    {
-        //right now we only handle mobile user or not
+    if (!request.headers()["User-Agent"].empty()) {//request.headers().find("UserAgent") != request.headers().end())
+        // we only handle mobile user or regular user 
         std::string user_agent = request.headers()["User-Agent"];
         //std::cout << "user_agent str: " << user_agent << "\n";
         if(user_agent.find("Mobile") != std::string::npos || 
            user_agent.find("Andriod") != std::string::npos || 
            user_agent.find("iOS") != std::string::npos || 
            user_agent.find("iPhone") != std::string::npos
-        )
-        {
+        ) {
             //add mobile agent to content gen array
             contentSelectionCriteria.userAgent = 1;
         }
-        else
-        {
+        else {
             //add not mobile to some sort of content generation array
             contentSelectionCriteria.userAgent = 0;
         }
 
     }
-    //broken rn
-    if(!request.headers()["If-Modified-Since"].empty())
-    {
+    if(!request.headers()["If-Modified-Since"].empty()) {
         //parsing the Http time/date format
         std::istringstream ss(request.headers()["If-Modified-Since"]);
         std::tm timeInfo = {};
@@ -756,36 +736,30 @@ HttpResponse RequestHandlers::GetHandler(const HttpRequest& request)
         contentSelectionCriteria.ifModifiedSince = time;
 
     }
-    if(!request.headers()["Connection"].empty()) //request.headers().find("Connection") != request.headers().end())
-    {
+    if(!request.headers()["Connection"].empty()) { //request.headers().find("Connection") != request.headers().end())
         std::vector<std::string> connectionAcceptedValues = {"close", "keep-alive"};
-        if(request.headers()["Connection"].find(connectionAcceptedValues[0]) != std::string::npos)
-        {
+        if(request.headers()["Connection"].find(connectionAcceptedValues[0]) != std::string::npos) {
             std::cout << "CLOSE HEADER" << "\n";
             //set some overarching connection var, this can't be just achieved in the response
             contentSelectionCriteria.connection = 0;
-            ourResponse.SetKeepAlive(false);
+            response.SetKeepAlive(false);
         }
-        else if (request.headers()["Connection"].find(connectionAcceptedValues[1]) != std::string::npos)
-        {
+        else if (request.headers()["Connection"].find(connectionAcceptedValues[1]) != std::string::npos) {
             std::cout << "KEEP ALIVE HEADER" << "\n";
             //set some overarching connection var also
             contentSelectionCriteria.connection = 1;
-            ourResponse.SetKeepAlive(true);
+            response.SetKeepAlive(true);
         }
 
     }
-    if(!request.headers()["Authorization"].empty())
-    {
-        //check that it is the basic form
+    if(!request.headers()["Authorization"].empty()) {
+        // check that it is the basic form
         std::string authorization_string = request.headers()["Authorization"];
         //std::cout << "Auth: " << request.headers()["Authorization"] << "\n";
-        if (authorization_string.substr(0, 5).compare("Basic") != 0)
-        {
+        if (authorization_string.substr(0, 5).compare("Basic") != 0) {
             std::cerr << "Unsupported authentification\n";
         }
-        else
-        {
+        else {
             std::string userPass = authorization_string.substr(5, authorization_string.length() - 5 - 1);
             std::cout << "UserPass " << userPass << "\n";
             
@@ -813,34 +787,28 @@ HttpResponse RequestHandlers::GetHandler(const HttpRequest& request)
     std::string filepath = root + our_uri;
     //std::cout << "filepath1: " << filepath << "\n";
 
-   
-
-    //std::cout << "here1\n";
-
     // handle load balance query endpoint 
     if (our_uri == "/load")
     {
         int newRequests = 1000;
         if (newRequests < 0 || newRequests > 100000) {
-            ourResponse.SetStatusCode(HttpStatusCode::ServiceUnavailable); //503
+            response.SetStatusCode(HttpStatusCode::ServiceUnavailable); //503
         }
-        else  {
-            ourResponse.SetStatusCode(HttpStatusCode::Ok); //200
+        else {
+            response.SetStatusCode(HttpStatusCode::Ok); //200
         }
 
         // make wrapper function for headers
-        return ourResponse; 
+        return response; 
     }
 
-    //select what file to send back based on headers
-    filepath = contentSelection(request, &ourResponse, &contentSelectionCriteria, filepath); //will catch if filepath is invalid
+    //select what file to send back in http response based on headers
+    filepath = contentSelection(request, &response, &contentSelectionCriteria, filepath); // will catch if filepath is invalid
     std::cout << filepath;
-    if(fillInErrorResponse(filepath, &ourResponse))
-    {
-        std::cout << "error response\n";
-        return ourResponse;
+    if(fillInErrorResponse(filepath, &response)) {
+        std::cout << "Error response\n";
+        return response;
     }
-    //std::cerr << "this file" << filepath << "\n";
 
     // check if file is CGI and executable 
     if (isExecutable(filepath)) {
@@ -853,14 +821,18 @@ HttpResponse RequestHandlers::GetHandler(const HttpRequest& request)
     //get the file contents into a buffer
     if(filepath.find(".jpg") != std::string::npos)
     {
+        printf("JPG IS FOUND \n");
         std::ifstream file(filepath, std::ios::binary);
         if (!file) {
-        throw std::runtime_error("Failed to open image file.");
+            throw std::runtime_error("Failed to open image file. \n");
         }
         std::vector<char> imageData((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
         std::string convertedString(imageData.begin(), imageData.end());
-        std::cout << "My image string" << convertedString << "\n";
-        ourResponse.SetContent(convertedString, filepath);
+        std::cout << "My image string: " << convertedString << "\n";
+
+        response.SetContent(convertedString, filepath);
+
+        //response.SetContent(convertedString, filepath);
     }
     else
     {
@@ -871,60 +843,33 @@ HttpResponse RequestHandlers::GetHandler(const HttpRequest& request)
             data  = data + dataChunk + "\n";
         }
         //std::cout << data << "\n";
-        ourResponse.SetContent(data, filepath);
+        response.SetContent(data, filepath);
     }
     
-    ourResponse.SetStatusCode(HttpStatusCode::Ok);
+    response.SetStatusCode(HttpStatusCode::Ok);
     //std::cout << filepath << "\n";
-    if(filepath.substr(filepath.length() - 5) == ".html")
-    {
-        //std::cout << "html" << "\n";
-        ourResponse.SetHeader("Content-Type", "text/html");
+    if(filepath.substr(filepath.length() - 5) == ".html") {
+        response.SetHeader("Content-Type", "text/html");
     }
-    else if(filepath.substr(filepath.length() - 4) == ".txt")
-    {
-        ourResponse.SetHeader("Content-Type", "text/plain");
+    else if(filepath.substr(filepath.length() - 4) == ".txt") {
+        response.SetHeader("Content-Type", "text/plain");
     }
-    else if(filepath.substr(filepath.length() - 4) == ".jpg")
-    {
-        ourResponse.SetHeader("Content-Type", "image/jpeg");
+    else if(filepath.substr(filepath.length() - 4) == ".jpg") {
+        response.SetHeader("Content-Type", "image/jpeg");
     }
 
-    return ourResponse;
+    std::cout << "response " << to_string(response) << "\n";
+
+    // return HTTP response object 
+    return response;
 }
 
 void RequestHandlers::RegisterGetHandlers(HttpServer& server) {
-  // Define and register GET handlers here
-    auto say_hello = [](const HttpRequest& request) -> HttpResponse {
-        HttpResponse response(HttpStatusCode::Ok);
-        response.SetHeader("Content-Type", "text/plain");
-        response.SetContent("Hello, world\n", "/");
-        return response;
-    };
-
-    auto send_html = [](const HttpRequest& request) -> HttpResponse {
-        HttpResponse response(HttpStatusCode::Ok);
-        std::string content;
-        content += "<!doctype html>\n";
-        content += "<html>\n<body>\n\n";
-        content += "<h1>Hello, world in an Html page</h1>\n";
-        content += "<p>A Paragraph</p>\n\n";
-        content += "</body>\n</html>\n";
-
-        response.SetHeader("Content-Type", "text/html");
-        response.SetContent(content, "/index.html");
-    
-        return response;
-    };
-
     auto getHandler = [](const HttpRequest& request) -> HttpResponse {
         return RequestHandlers::GetHandler(request);
     };
 
-    //server.RegisterHttpRequestHandler("/index.html", MethodType::GET, getHandler);
     server.RegisterHttpRequestHandler(MethodType::GET, getHandler);
-    server.RegisterHttpRequestHandler("/", MethodType::GET, say_hello);
-    //server.RegisterHttpRequestHandler("/hello.html", MethodType::GET, send_html);
 }
 
 
@@ -952,13 +897,7 @@ void RequestHandlers::RegisterPostHandlers(HttpServer& server) {
         std::string filepath = root + our_uri;
         std::cout << "filepath: " << filepath << "\n";
 
-
-        // Get the path to the CGI script for the requested URI
-        //std::string cgiScriptPath = request.uri().path();
-        // TOOD: need to replace this with the request path -- have to start at root
-        std::string cgiScriptPath = "../cgi-bin/script_cgi.pl";
-
-        // TODO: check if the cgiScriptPath is in the list of existing resources
+        // check if the cgiScriptPath is in the list of existing resources
         if(!std::__fs::filesystem::exists(filepath)) {
             std::cerr << "Resource Not Found" << "\n";
             return HttpResponse(HttpStatusCode::NotFound);

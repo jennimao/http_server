@@ -23,7 +23,7 @@ namespace myHttpServer {
 
 // Maximum size of an HTTP message is limited by how much bytes
 // we can read or send via socket each time
-constexpr size_t kMaxBufferSize = 4096;
+constexpr size_t kMaxBufferSize = 16384;
 
 struct EventData {
   EventData() : fd(0), length(0), cursor(0), buffer() {}
@@ -57,15 +57,9 @@ class HttpServer {
 
         void Start();
         void Stop();
-        void RegisterHttpRequestHandler(const std::string& path, MethodType method, const HttpRequestHandler_t callback) {
-            Uri uri(path);
-            request_handlers_[uri].insert(std::make_pair(method, std::move(callback)));
-        }
-        void RegisterHttpRequestHandler(const Uri& uri, MethodType method, const HttpRequestHandler_t callback) {
-            request_handlers_[uri].insert(std::make_pair(method, std::move(callback)));
-        }
+
         void RegisterHttpRequestHandler(MethodType method, const HttpRequestHandler_t callback) {
-            request_handlers_test[method] = std::move(callback);
+            request_handlers_[method] = std::move(callback);
         }
 
         std::string host() const { return host_; }
@@ -87,8 +81,8 @@ class HttpServer {
         //std::thread worker_threads_[kThreadPoolSize];
         int worker_kqueue_fd_[kThreadPoolSize];
         struct kevent worker_events[kMaxEvents];
-        std::map<Uri, std::map<MethodType, HttpRequestHandler_t>> request_handlers_;
-        std::map<MethodType, HttpRequestHandler_t> request_handlers_test;
+        //std::map<Uri, std::map<MethodType, HttpRequestHandler_t>> request_handlers_;
+        std::map<MethodType, HttpRequestHandler_t> request_handlers_;
         std::mt19937 rng_;
         std::uniform_int_distribution<int> sleep_times_;
 

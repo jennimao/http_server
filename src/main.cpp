@@ -79,35 +79,6 @@ int main(int argc, char* argv[]) {
   HttpServer server(host, port);
   RequestHandlers::RegisterHandlers(server);
 
-  // Register a few endpoints for demo and benchmarking
-  /*auto say_hello = [](const HttpRequest& request) -> HttpResponse {
-    HttpResponse response(HttpStatusCode::Ok);
-    response.SetHeader("Content-Type", "text/plain");
-    response.SetContent("Hello, world\n");
-    return response;
-  };
-
-  auto send_html = [](const HttpRequest& request) -> HttpResponse {
-    HttpResponse response(HttpStatusCode::Ok);
-    std::string content;
-    content += "<!doctype html>\n";
-    content += "<html>\n<body>\n\n";
-    content += "<h1>Hello, world in an Html page</h1>\n";
-    content += "<p>A Paragraph</p>\n\n";
-    content += "</body>\n</html>\n";
-
-    response.SetHeader("Content-Type", "text/html");
-    response.SetContent(content);
-    
-    return response;
-  };*/
-
-  //server.RegisterHttpRequestHandler("/", MethodType::HEAD, say_hello);
-  //server.RegisterHttpRequestHandler("/", MethodType::GET, say_hello);
-  //server.RegisterHttpRequestHandler("/hello.html", MethodType::HEAD, send_html);
-  //server.RegisterHttpRequestHandler("/hello.html", MethodType::GET, send_html);
-
-
   try {
     // std::cout << "Setting new limits for file descriptor count.." <<
     // std::endl; ensure_enough_resource(RLIMIT_NOFILE, 15000, 15000);

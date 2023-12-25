@@ -147,6 +147,19 @@ class HttpResponse : public HttpMessage {
       }
     }
 
+    /*void SetContent(const std::vector<char>& content, const std::string& filepath="") {
+
+      content_.assign(content.data(), content.size());
+      SetContentLength(content_);
+
+      if (filepath != "") {
+        std::string contentType = GetContentType(filepath);
+        SetHeader("Content-Type", contentType);
+        std::string lastModified = GetLastModified(filepath);
+        SetHeader("Last-Modified", lastModified);
+      }
+    }*/
+
     void SetLastModified(const std::string& filepath)
     {
       std::string lastModified = GetLastModified(filepath);

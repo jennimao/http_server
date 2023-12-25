@@ -46,7 +46,8 @@ void HttpServer::Start() {
                     sizeof(opt)) < 0) {
         throw std::runtime_error("Failed to set socket options");
     }
-
+    
+    // Bind the socket to the server address
     server_address.sin_family = AF_INET;
     server_address.sin_addr.s_addr = INADDR_ANY;
     inet_pton(AF_INET, host_.c_str(), &(server_address.sin_addr.s_addr));
@@ -56,6 +57,7 @@ void HttpServer::Start() {
         throw std::runtime_error("Failed to bind to socket");
     }
 
+    // Listen on the socket for incoming connections 
     if (listen(sock_fd_, kBacklogSize) < 0) {
         std::ostringstream msg;
         msg << "Failed to listen on port" << port_;
@@ -63,12 +65,9 @@ void HttpServer::Start() {
     }
 
     // Create worker threads
-    //std::vector<std::thread> workers;
     for (int i = 0; i < kThreadPoolSize; i++) {
         workers.emplace_back(&HttpServer::WorkerThread, this, i, sock_fd_);
     }
-
-    log("successfully created worker threads ");
 
     // Set running_ to true
     running_ = true;
@@ -77,7 +76,7 @@ void HttpServer::Start() {
 void HttpServer::Stop() {
     running_ = false;
 
-    // Join worker threads
+    // join worker threads
     for (auto& worker : workers) {
         worker.join();
     }
@@ -106,9 +105,8 @@ void HttpServer::WorkerThread(int workerID, int listeningSocket) {
     int currentWorker = 0;
     bool active = true;
 
-
     struct timespec timeout;
-    timeout.tv_sec = 3;  // 5 seconds
+    timeout.tv_sec = 3;  // 3 seconds
     timeout.tv_nsec = 0; // 0 nanoseconds
 
     // create a kqueue for this worker thread
@@ -119,7 +117,8 @@ void HttpServer::WorkerThread(int workerID, int listeningSocket) {
     }
 
     // register the listening socket with the worker's kqueue
-    ControlKqueueEvent(kq, EV_ADD, listeningSocket, EVFILT_READ, &timeout);
+    // TODO: i removed the timeout, make sure we really don't need it 
+    ControlKqueueEvent(kq, EV_ADD, listeningSocket, EVFILT_READ);
 
     struct kevent events[kMaxEvents];
     while (running_) {
@@ -140,6 +139,10 @@ void HttpServer::WorkerThread(int workerID, int listeningSocket) {
 
         // iterate through the retrieved events and handle them 
         for (int i = 0; i < numEvents; ++i) {
+
+            /////////////////////////////////////////////
+            // Case 1: The event is a new connection 
+            /////////////////////////////////////////////
             if (events[i].ident == listeningSocket) {
                 // accept client socket 
                 clientSocket = accept(listeningSocket, (sockaddr *)&clientAddress, &clientLen);
@@ -162,18 +165,17 @@ void HttpServer::WorkerThread(int workerID, int listeningSocket) {
 
                     clientData = new EventData();
                     clientData->fd = clientSocket;
-                    // this becomes a temporarily blocking call 
-
-                    // TODO: add a timeoout value to controlkqeueuevent 
-                    struct timespec timeout; 
-                    timeout.tv_sec = 3; // 3 second timeout 
-                    timeout.tv_nsec = 0; 
+    
+                    // register the client socket with the worker's kqueue with a timeout of three seconds 
                     ControlKqueueEvent(kq, EV_ADD, clientSocket, EVFILT_READ, clientData, &timeout);
                     //std::cout << "Worker " << workerID << " accepted connection on socket " << clientSocket << std::endl;
                 }
             }
+
+            ////////////////////////////////////////////////////
+            // Case 2: The event is a HTTP request or response 
+            ///////////////////////////////////////////////////
             else {
-                // process client here 
                 active = true; 
                 const struct kevent &current_event = events[i];
                 data = reinterpret_cast<EventData *>(current_event.udata);
@@ -187,61 +189,11 @@ void HttpServer::WorkerThread(int workerID, int listeningSocket) {
                     HandleKqueueEvent(kq, data, EVFILT_WRITE);
                 } 
                 else {
-                    log("unexpected event");
+                    log("Unexpected event");
+                    ControlKqueueEvent(kq, EV_DELETE, data->fd, current_event.filter);
                     delete data; 
                     close(data->fd);
-                    // handle unexpected by removing the event 
-                    //ControlKqueueEvent(kq, EV_DELETE, data->fd, current_event.filter);
-                    //close(data->fd);
-                    //delete data; 
                 }
-
-            }
-        }
-    }
-}
-
-
-void HttpServer::ProcessEvents(int worker_id) {
-    EventData *data;
-    int kq = worker_kqueue_fd_[worker_id];
-    bool active = true;
-
-    while (running_) {
-        if (!active) {
-            std::this_thread::sleep_for(std::chrono::microseconds(sleep_times_(rng_)));
-        }
-
-        struct timespec timeout = {0}; 
-
-        // retrieve events  
-        int num_events = kevent(kq, NULL, 0, worker_events, kMaxEvents, &timeout);
-        if (num_events <= 0) {
-            active = false;
-            continue;
-        }
-
-        active = true;
-        // iterate through the retrieved events and handle them
-        for (int i = 0; i < num_events; i++) {
-            log(std::to_string(worker_id));
-            const struct kevent &current_event = worker_events[i];
-            data = reinterpret_cast<EventData *>(current_event.udata);
-
-            if (current_event.filter == EVFILT_READ) {
-                // handle read event
-                HandleKqueueEvent(kq, data, EVFILT_READ);
-            } 
-            else if (current_event.filter == EVFILT_WRITE) {
-                // handle write event
-                HandleKqueueEvent(kq, data, EVFILT_WRITE);
-            } 
-            else {
-                log("unexpected event while processing events\n");
-                // handle unexpected by removing the event 
-                //ControlKqueueEvent(kq, EV_DELETE, data->fd, current_event.filter);
-                close(data->fd);
-                delete data; 
             }
         }
     }
@@ -256,20 +208,24 @@ void HttpServer::HandleKqueueEvent(int kq, EventData *data, int filter) {
         request = data;
         ssize_t byte_count = recv(fd, request->buffer, kMaxBufferSize, 0); // read data from client
 
-        // we have fully received the message TODO: implement a way to check if the full message has been received 
+        // we have fully received the message TODO: implement a way to check if the full message has not been received 
         if (byte_count > 0) {  
             response = new EventData();
             response->fd = fd;
             HandleHttpData(*request, response); 
             std::cout << "http data is being handled " << request << "\n";
+
             send(fd, response->buffer + response->cursor, response->length, 0);
+            
             ControlKqueueEvent(kq, EV_ADD, fd, EVFILT_WRITE, response);
-            //ControlKqueueEvent(kq, EV_ADD, fd, EVFILT_WRITE, new EventData()); // write response to client  
             //delete request; 
         } 
     } 
     // write event 
     else if (filter == EVFILT_WRITE) {
+        // eventually move send into here 
+        // check if the bytes sent is equal to it 
+
         if(!data->keepAlive)
         {
             delete data;
@@ -281,6 +237,9 @@ void HttpServer::HandleKqueueEvent(int kq, EventData *data, int filter) {
     }
 }
 
+
+// Takes in a HTTP request string and copies the resulting HTTP response into a string 
+// and then copies it into an EventData response object
 void HttpServer::HandleHttpData(const EventData &raw_request, EventData *raw_response) {
     std::string request_string(raw_request.buffer), response_string;
     HttpRequest http_request;
@@ -304,7 +263,6 @@ void HttpServer::HandleHttpData(const EventData &raw_request, EventData *raw_res
     }
 
     // set response to write to client
-    
     response_string = to_string(http_response, true); //CHANGE
     memcpy(raw_response->buffer, response_string.c_str(), kMaxBufferSize);
     raw_response->length = response_string.length();
@@ -312,13 +270,13 @@ void HttpServer::HandleHttpData(const EventData &raw_request, EventData *raw_res
 }
 
 
+// Takes in HTTP Request and returns a HTTP Response object
 HttpResponse HttpServer::HandleHttpRequest(const HttpRequest &request) {
-
     std::cout << "The Request:" << to_string(request) << "\n";
 
-    //test for method indexing
-    auto it = request_handlers_test.find(request.method());
-    if (it == request_handlers_test.end()) {  // this method is not registered
+    // find the handler for the request method 
+    auto it = request_handlers_.find(request.method());
+    if (it == request_handlers_.end()) {  // this method is not registered
         return HttpResponse(HttpStatusCode::NotFound);
     }
 
@@ -347,7 +305,6 @@ void HttpServer::ControlKqueueEvent(int kq, int op, int fd, std::uint32_t events
         int res = kevent(kq, &kev, 1, &kev, 1, timeout);
         if (res == -1) {
             if (op == EV_DELETE && errno == ENOENT) {
-                // ENOENT = non existent event 
                 return; 
             }
             throw std::runtime_error((op == EV_DELETE) ? "Failed to remove file descriptor" : "Failed to add file descriptor");
